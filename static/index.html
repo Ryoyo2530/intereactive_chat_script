@@ -25,7 +25,9 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap" rel="stylesheet">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-warm-50 via-rose-50 to-orange-50 text-stone-800">
 
@@ -33,7 +35,12 @@
   <div id="screen-select" class="min-h-screen flex flex-col items-center p-6 pt-10 sm:pt-16">
     <div class="text-center mb-8">
       <h1 class="text-3xl sm:text-4xl font-bold text-warm-600 tracking-tight">入戏</h1>
-      <p class="mt-3 text-stone-500 text-sm sm:text-base">选择剧本，开启一段对话式剧情冒险</p>
+      <div class="brand-slogan mt-3 flex items-center justify-center gap-3 sm:gap-4">
+        <span class="brand-slogan-line" aria-hidden="true"></span>
+        <p class="brand-slogan-text m-0">另一半台词</p>
+        <span class="brand-slogan-line" aria-hidden="true"></span>
+      </div>
+      <p class="mt-4 text-stone-500 text-sm sm:text-base">选择剧本，开启一段对话式剧情冒险</p>
     </div>
 
     <!-- Tabs -->
@@ -174,6 +181,7 @@
     </div>
   </div>
 
+  <link rel="stylesheet" href="/style.css?v=2">
   <script src="/app.js"></script>
 </body>
 </html>
