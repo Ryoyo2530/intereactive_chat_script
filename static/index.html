@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入戏</title>
+  <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            warm: {
+              50: '#fdf8f6',
+              100: '#f9ede8',
+              200: '#f2d9cf',
+              300: '#e8bfb0',
+              400: '#d99a84',
+              500: '#c97862',
+              600: '#b35d4a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-warm-50 via-rose-50 to-orange-50 text-stone-800">
+
+  <!-- Script Selection Screen -->
+  <div id="screen-select" class="min-h-screen flex flex-col items-center p-6 pt-10 sm:pt-16">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold text-warm-600 tracking-tight">入戏</h1>
+      <p class="mt-3 text-stone-500 text-sm sm:text-base">选择剧本，开启一段对话式剧情冒险</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="w-full max-w-md mb-6">
+      <div class="flex rounded-xl bg-white/70 p-1 border border-warm-100 shadow-sm">
+        <button data-tab="scripts" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition">可用剧本</button>
+        <button data-tab="tbc" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition">更多剧本</button>
+        <button data-tab="settings" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition">LLM 配置</button>
+      </div>
+    </div>
+
+    <!-- Tab: Available Scripts -->
+    <div id="tab-scripts" class="tab-panel w-full max-w-md space-y-4">
+      <div id="config-warning" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        请先完成 <button type="button" data-tab-link="settings" class="font-semibold underline">LLM 配置</button> 后再开始游戏
+      </div>
+      <div id="script-list">
+        <div class="animate-pulse bg-white/60 rounded-2xl h-24 shadow-sm"></div>
+      </div>
+    </div>
+
+    <!-- Tab: More Scripts TBC -->
+    <div id="tab-tbc" class="tab-panel hidden w-full max-w-md space-y-4">
+      <div class="rounded-2xl border border-dashed border-warm-200 bg-white/50 p-8 text-center">
+        <p class="text-4xl mb-3">🎭</p>
+        <h3 class="text-lg font-semibold text-warm-600">更多剧本 · TBC</h3>
+        <p class="mt-2 text-sm text-stone-500 leading-relaxed">更多精彩剧情正在筹备中，敬请期待。</p>
+      </div>
+      <div class="rounded-2xl bg-white/40 border border-warm-100 p-5 opacity-60 cursor-not-allowed">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium text-stone-500">甄嬛传 · 滴血认亲篇</h3>
+          <span class="text-xs bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">TBC</span>
+        </div>
+        <p class="mt-2 text-sm text-stone-400">在皇后与祺嫔的夹击下，为自己辩白…</p>
+      </div>
+      <div class="rounded-2xl bg-white/40 border border-warm-100 p-5 opacity-60 cursor-not-allowed">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium text-stone-500">黑暗荣耀 · 复仇对质</h3>
+          <span class="text-xs bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">TBC</span>
+        </div>
+        <p class="mt-2 text-sm text-stone-400">与朴妍珍正面对峙，揭开真相…</p>
+      </div>
+    </div>
+
+    <!-- Tab: LLM Settings -->
+    <div id="tab-settings" class="tab-panel hidden w-full max-w-md">
+      <form id="llm-config-form" class="rounded-2xl bg-white/80 border border-warm-100 shadow-sm p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1.5">Provider</label>
+          <select id="cfg-provider" class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+            <option value="doubao">豆包 / 火山引擎</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1.5">API Base URL</label>
+          <input id="cfg-api-base" type="url" placeholder="https://ark.cn-beijing.volces.com/api/v3"
+            class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1.5">API Key</label>
+          <input id="cfg-api-key" type="password" placeholder="必填"
+            class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1.5">Model</label>
+          <input id="cfg-model" type="text" placeholder="doubao-seed-2-0-lite-260428"
+            class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+        </div>
+        <div id="cfg-status" class="hidden rounded-xl px-3 py-2 text-xs"></div>
+        <div class="flex gap-2 pt-1">
+          <button type="button" id="cfg-test-btn"
+            class="flex-1 rounded-xl border border-warm-200 bg-white hover:bg-warm-50 text-warm-600 px-4 py-2.5 text-sm font-medium transition">
+            测试连接
+          </button>
+          <button type="submit"
+            class="flex-1 rounded-xl bg-warm-500 hover:bg-warm-600 text-white px-4 py-2.5 text-sm font-medium transition shadow-sm">
+            保存配置
+          </button>
+        </div>
+        <p class="text-xs text-stone-400 leading-relaxed">配置保存在浏览器本地。部署到 Render 时也可通过环境变量 <code class="text-stone-500">LLM_API_KEY</code> 等注入，无需在此填写。</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="screen-game" class="hidden min-h-screen flex flex-col max-w-2xl mx-auto">
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-warm-200/60 px-4 py-3 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div class="min-w-0">
+          <h2 id="game-title" class="text-lg font-semibold text-warm-600 truncate"></h2>
+          <p id="game-objective" class="text-xs text-stone-500 truncate mt-0.5"></p>
+        </div>
+        <div id="turn-indicator" class="shrink-0 ml-3 text-xs font-medium bg-warm-100 text-warm-600 px-3 py-1.5 rounded-full"></div>
+      </div>
+      <!-- Stats -->
+      <div id="stats-bar" class="mt-3 space-y-2"></div>
+    </header>
+
+    <!-- Chat -->
+    <main id="chat-area" class="flex-1 overflow-y-auto px-4 py-4 space-y-4"></main>
+
+    <!-- Input -->
+    <footer id="input-area" class="sticky bottom-0 bg-white/80 backdrop-blur-md border-t border-warm-200/60 px-4 py-3">
+      <form id="message-form" class="flex gap-2">
+        <input
+          id="message-input"
+          type="text"
+          placeholder="输入你想说的话…"
+          autocomplete="off"
+          class="flex-1 rounded-xl border border-warm-200 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50 focus:border-warm-400 transition"
+        >
+        <button
+          type="submit"
+          id="send-btn"
+          class="shrink-0 rounded-xl bg-warm-500 hover:bg-warm-600 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          发送
+        </button>
+      </form>
+    </footer>
+  </div>
+
+  <!-- Ending Overlay -->
+  <div id="ending-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
+    <div class="ending-card bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center transform transition-all">
+      <div id="ending-icon" class="text-5xl mb-4"></div>
+      <h3 id="ending-title" class="text-2xl font-bold mb-3"></h3>
+      <p id="ending-text" class="text-stone-600 text-sm leading-relaxed mb-6"></p>
+      <button
+        id="restart-btn"
+        class="rounded-xl bg-warm-500 hover:bg-warm-600 text-white px-8 py-2.5 text-sm font-medium transition shadow-sm"
+      >
+        重新开始
+      </button>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
