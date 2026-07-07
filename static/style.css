@@ -1,3 +1,6 @@
+/* Critical fallbacks when Tailwind CDN fails to load (e.g. network restrictions) */
+.hidden { display: none !important; }
+
 /* Brand slogan — loaded after Tailwind to avoid override */
 .brand-slogan .brand-slogan-line {
   display: block;
