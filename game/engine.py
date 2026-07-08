@@ -1,57 +1,22 @@
-import json
 import logging
-import re
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 from game import director, llm_client, roleplay, prompt_manager
 from game import llm_config
 from game import session as session_store
+from game import condition_parser
+from game import script_repository
 
 logger = logging.getLogger(__name__)
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
-_scripts_cache: list[dict[str, Any]] | None = None
-
-
-def _load_scripts_from_disk() -> list[dict[str, Any]]:
-    scripts = []
-    for path in sorted(SCRIPTS_DIR.rglob("*.json")):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if not data.get("id"):
-                continue
-            scripts.append({
-                "id": data["id"],
-                "title": data["title"],
-                "origin_tag": data.get("origin_tag", ""),
-                "theme_tags": data.get("theme_tags", []),
-                "teaser": data.get("teaser", data.get("objective", "")),
-                "player_role_hint": data.get("player_role_hint", ""),
-                "estimated_turns_hint": data.get("estimated_turns_hint", ""),
-            })
-        except Exception:
-            continue
-    return scripts
-
 
 def list_scripts() -> list[dict[str, Any]]:
-    global _scripts_cache
-    if _scripts_cache is None:
-        _scripts_cache = _load_scripts_from_disk()
-    return _scripts_cache
+    return script_repository.list_summary()
 
 
 def load_script(script_id: str) -> dict[str, Any]:
-    for path in SCRIPTS_DIR.rglob("*.json"):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if data.get("id") == script_id:
-                return data
-        except Exception:
-            continue
-    raise FileNotFoundError(f"Script not found: {script_id}")
+    return script_repository.load_one(script_id)
 
 
 def _clamp_stats(stats: dict[str, int], script: dict[str, Any]) -> dict[str, int]:
@@ -65,26 +30,7 @@ def _clamp_stats(stats: dict[str, int], script: dict[str, Any]) -> dict[str, int
 
 
 def _evaluate_condition(condition: str, stats: dict[str, int]) -> bool:
-    parts = re.split(r"\s*且\s*", condition.strip())
-    for part in parts:
-        match = re.match(r"(.+?)\s*(<=|>=|<|>|==)\s*(-?\d+)", part.strip())
-        if not match:
-            continue
-        stat_name, op, raw_value = match.groups()
-        stat_name = stat_name.strip()
-        value = stats.get(stat_name, 0)
-        threshold = int(raw_value)
-        if op == "<=" and not (value <= threshold):
-            return False
-        if op == ">=" and not (value >= threshold):
-            return False
-        if op == "<" and not (value < threshold):
-            return False
-        if op == ">" and not (value > threshold):
-            return False
-        if op == "==" and not (value == threshold):
-            return False
-    return True
+    return condition_parser.evaluate(condition, stats)
 
 
 def _rule_based_end(script: dict[str, Any], stats: dict[str, int], turn: int) -> tuple[bool, str | None, str | None]:
@@ -379,6 +325,37 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
     reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
     emotion_tag = roleplay_result.get("emotion_tag", "")
     return _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
+
+
+def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
+    """Same as process_message but includes raw director + roleplay output in _debug."""
+    game_session = session_store.get_session(session_id)
+    if not game_session:
+        raise ValueError("Session not found")
+    if game_session["game_over"]:
+        raise ValueError("Game is already over")
+
+    player_message = _prepare_turn(game_session, message)
+    cfg = _session_llm_config(game_session)
+
+    director_result = director.judge(game_session, player_message, cfg)
+    stats, stat_changes = _process_director_turn(game_session, director_result)
+
+    game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+
+    if game_over:
+        reply = ending_text or "游戏结束。"
+        response = _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
+        response["_debug"] = {"director": director_result, "roleplay": None}
+        return response
+
+    reaction = director_result.get("reaction") or {}
+    roleplay_result = roleplay.respond(game_session, player_message, reaction, cfg)
+    reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
+    emotion_tag = roleplay_result.get("emotion_tag", "")
+    response = _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
+    response["_debug"] = {"director": director_result, "roleplay": roleplay_result}
+    return response
 
 
 def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, Any]]:

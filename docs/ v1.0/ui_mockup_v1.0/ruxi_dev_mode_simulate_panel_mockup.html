@@ -1,0 +1,75 @@
+<div style="background: var(--surface-1); border-radius: 12px; padding: 0; display: flex; justify-content: center;">
+<div style="width: 480px; background: var(--surface-2); border-radius: 14px; border: 0.5px solid var(--border); overflow: hidden;">
+
+  <div style="background: #F7E3C2; color: #6B4A12; padding: 8px 16px; font-size: 12px; display: flex; align-items: center; gap: 6px; font-weight: 500;">
+    <i class="ti ti-flask" style="font-size: 14px;" aria-hidden="true"></i>
+    试玩验证 · 我的前半生·唐晶篇（草稿）
+  </div>
+
+  <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; max-height: 480px; overflow-y: auto;">
+
+    <div style="align-self: flex-end; max-width: 80%;">
+      <div style="background: #7F77DD; color: #EEEDFE; border-radius: 14px 14px 4px 14px; padding: 9px 13px; font-size: 13.5px; line-height: 1.5;">
+        我理解你担心的是我和贺涵越界了，但其实我们一直保持着分寸。
+      </div>
+    </div>
+
+    <div style="align-self: flex-start; max-width: 80%;">
+      <p style="margin: 0 0 4px; font-size: 11px; color: var(--text-muted);">唐晶 · <span style="background: var(--surface-3); padding: 1px 6px; border-radius: 999px;">软化</span></p>
+      <div style="background: var(--surface-1); border-radius: 14px 14px 14px 4px; padding: 9px 13px; font-size: 13.5px; line-height: 1.5;">
+        ……你早说清楚不就好了。我不是无理取闹，我只是怕你们都瞒着我。
+      </div>
+    </div>
+
+    <div style="border: 0.5px dashed var(--border); border-radius: 10px; padding: 10px 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+        <span style="font-size: 11.5px; color: var(--text-secondary); font-weight: 500;">
+          <i class="ti ti-chevron-down" style="font-size: 12px; vertical-align: -1px; margin-right: 4px;" aria-hidden="true"></i>调试信息 · 第 4 轮
+        </span>
+      </div>
+      <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="background: var(--surface-1); border-radius: 6px; padding: 8px 10px;">
+          <p style="margin: 0 0 4px; font-size: 10.5px; color: var(--text-muted); font-weight: 500;">导演 Agent</p>
+          <pre style="margin: 0; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap;">hit_key_points: ["explain_boundary"]
+hit_pitfalls: []
+stat_changes: { 怀疑值: -18, 愤怒值: -8 }
+reaction: { tone: "软化", intensity: "中", focus: "确认边界说明是否可信" }</pre>
+        </div>
+        <div style="background: var(--surface-1); border-radius: 6px; padding: 8px 10px;">
+          <p style="margin: 0 0 4px; font-size: 10.5px; color: var(--text-muted); font-weight: 500;">演员 Agent</p>
+          <pre style="margin: 0; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap;">emotion_tag: "软化"</pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="padding: 10px 16px; border-top: 0.5px solid var(--border); display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; gap: 6px;">
+      <div style="flex: 1;">
+        <div style="display:flex; justify-content: space-between; font-size: 10.5px; margin-bottom: 3px;">
+          <span style="color: var(--text-muted);">怀疑值</span><span style="color: var(--text-muted);">34</span>
+        </div>
+        <div style="height: 5px; background: var(--surface-1); border-radius: 3px; overflow: hidden;">
+          <div style="width: 34%; height: 100%; background: #BA7517;"></div>
+        </div>
+      </div>
+      <div style="flex: 1;">
+        <div style="display:flex; justify-content: space-between; font-size: 10.5px; margin-bottom: 3px;">
+          <span style="color: var(--text-muted);">愤怒值</span><span style="color: var(--text-muted);">42</span>
+        </div>
+        <div style="height: 5px; background: var(--surface-1); border-radius: 3px; overflow: hidden;">
+          <div style="width: 42%; height: 100%; background: #BA7517;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <input type="text" placeholder="以玩家身份输入测试对话…" style="flex: 1;" />
+      <button style="width: 44px; padding: 0; display:flex; align-items:center; justify-content:center;">
+        <i class="ti ti-send" style="font-size: 16px;" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
