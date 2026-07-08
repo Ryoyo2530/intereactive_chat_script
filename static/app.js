@@ -18,6 +18,8 @@ const state = {
   llmConfigured: false,
   serverHasEnvConfig: false,
   activeTab: 'scripts',
+  statsConfig: {},
+  currentScriptId: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -136,24 +138,14 @@ function showCfgMessage(text, ok = true) {
   status.classList.remove('hidden');
 }
 
-function statColor(name, value, max = 100) {
+function statBarFill(value, cfg = {}) {
+  const max = cfg.max ?? 100;
+  const direction = cfg.direction ?? 'lower_is_better';
   const ratio = value / max;
-  if (name.includes('愤怒') || name.includes('敌意')) {
-    if (ratio >= 0.7) return 'bg-red-500';
-    if (ratio >= 0.4) return 'bg-orange-400';
-    return 'bg-amber-300';
-  }
-  if (name.includes('怀疑')) {
-    if (ratio >= 0.7) return 'bg-purple-500';
-    if (ratio >= 0.4) return 'bg-violet-400';
-    return 'bg-indigo-300';
-  }
-  if (name.includes('友好') || name.includes('信任')) {
-    if (ratio >= 0.7) return 'bg-emerald-500';
-    if (ratio >= 0.4) return 'bg-green-400';
-    return 'bg-teal-300';
-  }
-  return ratio >= 0.5 ? 'bg-warm-500' : 'bg-warm-300';
+  const severity = direction === 'lower_is_better' ? ratio : (1 - ratio);
+  if (severity < 0.3) return '#C0DD97';
+  if (severity < 0.7) return '#BA7517';
+  return '#E24B4A';
 }
 
 function renderStats(changes = {}) {
@@ -161,39 +153,26 @@ function renderStats(changes = {}) {
   container.innerHTML = '';
 
   for (const [name, value] of Object.entries(state.stats)) {
-    const row = document.createElement('div');
-    row.className = 'flex items-center gap-2';
+    const cfg = state.statsConfig[name] || {};
+    const block = document.createElement('div');
 
-    const label = document.createElement('span');
-    label.className = 'text-xs text-stone-500 w-12 shrink-0 text-right';
-    label.textContent = name;
+    const labels = document.createElement('div');
+    labels.className = 'stat-row-labels';
+    labels.innerHTML = `<span>${name}</span><span>${value}${changes[name] ? ` (${changes[name] > 0 ? '+' : ''}${changes[name]})` : ''}</span>`;
 
     const track = document.createElement('div');
-    track.className = 'flex-1 h-2.5 bg-stone-100 rounded-full overflow-hidden';
-
+    track.className = 'stat-track';
     const fill = document.createElement('div');
-    fill.className = `stat-fill h-full rounded-full ${statColor(name, value)}`;
+    fill.className = 'stat-fill';
     fill.style.width = `${value}%`;
+    fill.style.height = '100%';
+    fill.style.borderRadius = '3px';
+    fill.style.background = statBarFill(value, cfg);
     track.appendChild(fill);
 
-    const num = document.createElement('span');
-    num.className = 'text-xs font-medium text-stone-600 w-8 shrink-0';
-    num.textContent = value;
-
-    row.appendChild(label);
-    row.appendChild(track);
-    row.appendChild(num);
-
-    if (changes[name]) {
-      const delta = changes[name];
-      const badge = document.createElement('span');
-      badge.className = `text-xs font-bold ${delta > 0 ? 'text-red-500' : 'text-emerald-500'}`;
-      badge.textContent = delta > 0 ? `+${delta}` : `${delta}`;
-      row.appendChild(badge);
-      track.classList.add('stat-flash');
-    }
-
-    container.appendChild(row);
+    block.appendChild(labels);
+    block.appendChild(track);
+    container.appendChild(block);
   }
 }
 
@@ -208,25 +187,28 @@ function scrollChatToBottom() {
 
 function createMessageBubble(role, character) {
   const wrapper = document.createElement('div');
-  wrapper.className = `msg-enter flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+  wrapper.className = `msg-enter msg-row ${role === 'user' ? 'user' : 'ai'}`;
+
+  const nameEl = document.createElement('p');
+  nameEl.className = `msg-name ${role === 'user' ? 'user-name' : ''}`;
+  nameEl.textContent = character;
 
   const bubble = document.createElement('div');
-  bubble.className = role === 'user'
-    ? 'max-w-[80%] rounded-2xl rounded-br-md bg-warm-500 text-white px-4 py-3 shadow-sm'
-    : 'max-w-[80%] rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm border border-warm-100';
-
-  if (role === 'assistant' && character) {
-    const nameEl = document.createElement('div');
-    nameEl.className = 'text-xs font-semibold text-warm-500 mb-1 flex items-center gap-1';
-    nameEl.innerHTML = `<span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-warm-100 text-warm-600 text-[10px]">${character[0]}</span> ${character}`;
-    bubble.appendChild(nameEl);
-  }
+  bubble.className = role === 'user' ? 'bubble-user' : 'bubble-ai';
 
   const text = document.createElement('p');
-  text.className = 'text-sm leading-relaxed whitespace-pre-wrap';
+  text.style.margin = '0';
+  text.className = role === 'assistant' ? '' : '';
   bubble.appendChild(text);
 
-  wrapper.appendChild(bubble);
+  if (role === 'assistant') {
+    wrapper.appendChild(nameEl);
+    wrapper.appendChild(bubble);
+  } else {
+    wrapper.appendChild(bubble);
+    wrapper.appendChild(nameEl);
+  }
+
   return { wrapper, text };
 }
 
@@ -242,7 +224,7 @@ function appendTypingBubble(character) {
   const area = $('#chat-area');
   const { wrapper, text } = createMessageBubble('assistant', character);
   wrapper.dataset.typing = 'true';
-  text.innerHTML = '<span class="typing-dots inline-flex gap-1 align-middle"><span></span><span></span><span></span></span>';
+  text.innerHTML = '<span class="typing-dots-v1 inline-flex gap-1"><span></span><span></span><span></span></span>';
   area.appendChild(wrapper);
   scrollChatToBottom();
   return { wrapper, text };
@@ -256,14 +238,30 @@ function promoteTypingBubbleToStream(bubbleRef, character) {
   return { wrapper, text };
 }
 
-function showEnding(result, text) {
-  const overlay = $('#ending-overlay');
-  const isWin = result === 'win';
-  $('#ending-icon').textContent = isWin ? '🎉' : '💔';
-  $('#ending-title').textContent = isWin ? '达成目标' : '游戏结束';
-  $('#ending-title').className = `text-2xl font-bold mb-3 ${isWin ? 'text-emerald-600' : 'text-red-500'}`;
+function showEnding(outcome, text) {
+  const isWin = outcome === 'win';
+  const iconWrap = $('#ending-icon-wrap');
+  iconWrap.className = `ending-icon-wrap ${isWin ? 'win' : 'lose'}`;
+  iconWrap.textContent = isWin ? '✓' : '✕';
+
+  const titles = state.script?.ending_titles || {};
+  const outcomeLabel = isWin ? '达成' : '失败';
+  $('#ending-meta').textContent = `第 ${state.turn} / ${state.maxTurns} 轮 · ${outcomeLabel}`;
+  $('#ending-title').textContent = isWin
+    ? (titles.win || '达成目标')
+    : (titles.lose || '未能达成目标');
   $('#ending-text').textContent = text || (isWin ? '你成功化解了矛盾！' : '未能达成目标，再试一次吧。');
-  overlay.classList.remove('hidden');
+
+  const statsEl = $('#ending-stats');
+  statsEl.innerHTML = '';
+  for (const [name, value] of Object.entries(state.stats)) {
+    const item = document.createElement('div');
+    item.className = 'ending-stat-item';
+    item.innerHTML = `<p>最终${name}</p><strong>${value}</strong>`;
+    statsEl.appendChild(item);
+  }
+
+  $('#ending-overlay').classList.remove('hidden');
   $('#input-area').classList.add('hidden');
 }
 
@@ -336,6 +334,7 @@ async function startGame(scriptId) {
     return;
   }
 
+  hideEnding();
   const llmConfig = getEffectiveLLMConfig();
   const payload = { script_id: scriptId };
   if (llmConfig) payload.llm_config = llmConfig;
@@ -359,6 +358,8 @@ async function startGame(scriptId) {
     state.maxTurns = data.script.max_turns;
     state.aiName = data.script.ai_character_name;
     state.playerName = data.script.player_character_name;
+    state.statsConfig = data.script.stats_config || {};
+    state.currentScriptId = scriptId;
     state.gameOver = false;
 
     $('#game-title').textContent = data.script.title;
@@ -446,7 +447,7 @@ async function sendMessage(message) {
 
     if (finalData.game_over) {
       state.gameOver = true;
-      showEnding(finalData.result, finalData.ending_text);
+      showEnding(finalData.outcome || finalData.result, finalData.ending_text);
     }
   } catch (err) {
     if (typingBubble?.wrapper?.parentNode) {
@@ -465,7 +466,15 @@ $('#message-form').addEventListener('submit', (e) => {
   sendMessage($('#message-input').value);
 });
 
-$('#restart-btn').addEventListener('click', resetToSelect);
+$('#help-btn').addEventListener('click', () => {
+  alert('提示功能即将上线，敬请期待。');
+});
+
+$('#replay-btn').addEventListener('click', () => {
+  if (state.currentScriptId) startGame(state.currentScriptId);
+});
+
+$('#change-script-btn').addEventListener('click', resetToSelect);
 
 $$('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));

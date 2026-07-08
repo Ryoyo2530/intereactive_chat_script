@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from game import llm_client
 from game import llm_config
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(title="入戏")
 

@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from collections.abc import Iterator
 from typing import Any
@@ -6,6 +7,8 @@ from typing import Any
 from openai import OpenAI
 
 from game.llm_config import LLMConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _extra_body(config: LLMConfig) -> dict[str, Any]:
@@ -99,8 +102,9 @@ def chat_json(
     try:
         raw = chat_completion(messages, config, temperature=0.7)
         return _extract_json(raw)
-    except Exception:
-        return fallback
+    except Exception as exc:
+        logger.warning("LLM JSON parse failed: %s", exc)
+        return dict(fallback)
 
 
 def test_connection(config: LLMConfig) -> dict[str, str]:

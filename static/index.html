@@ -25,7 +25,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/style.css?v=3">
+  <link rel="stylesheet" href="/style.css?v=4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap" rel="stylesheet">
@@ -128,60 +128,47 @@
     </div>
   </div>
 
-  <!-- Game Screen -->
-  <div id="screen-game" class="hidden min-h-screen flex flex-col max-w-2xl mx-auto">
-    <!-- Header -->
-    <header class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-warm-200/60 px-4 py-3 shadow-sm">
-      <div class="flex items-center justify-between">
-        <div class="min-w-0">
-          <h2 id="game-title" class="text-lg font-semibold text-warm-600 truncate"></h2>
-          <p id="game-objective" class="text-xs text-stone-500 truncate mt-0.5"></p>
+  <!-- Game Screen v1.0 -->
+  <div id="screen-game" class="hidden game-shell">
+    <div class="game-card">
+      <header class="game-header">
+        <div class="game-header-top">
+          <div class="game-header-info">
+            <h2 id="game-title"></h2>
+            <p id="game-objective"></p>
+          </div>
+          <span id="turn-indicator"></span>
         </div>
-        <div id="turn-indicator" class="shrink-0 ml-3 text-xs font-medium bg-warm-100 text-warm-600 px-3 py-1.5 rounded-full"></div>
-      </div>
-      <!-- Stats -->
-      <div id="stats-bar" class="mt-3 space-y-2"></div>
-    </header>
+        <div id="stats-bar" class="stats-bar"></div>
+      </header>
 
-    <!-- Chat -->
-    <main id="chat-area" class="flex-1 overflow-y-auto px-4 py-4 space-y-4"></main>
+      <main id="chat-area" class="chat-area"></main>
 
-    <!-- Input -->
-    <footer id="input-area" class="sticky bottom-0 bg-white/80 backdrop-blur-md border-t border-warm-200/60 px-4 py-3">
-      <form id="message-form" class="flex gap-2">
-        <input
-          id="message-input"
-          type="text"
-          placeholder="输入你想说的话…"
-          autocomplete="off"
-          class="flex-1 rounded-xl border border-warm-200 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50 focus:border-warm-400 transition"
-        >
-        <button
-          type="submit"
-          id="send-btn"
-          class="shrink-0 rounded-xl bg-warm-500 hover:bg-warm-600 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          发送
-        </button>
-      </form>
-    </footer>
-  </div>
-
-  <!-- Ending Overlay -->
-  <div id="ending-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
-    <div class="ending-card bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center transform transition-all">
-      <div id="ending-icon" class="text-5xl mb-4"></div>
-      <h3 id="ending-title" class="text-2xl font-bold mb-3"></h3>
-      <p id="ending-text" class="text-stone-600 text-sm leading-relaxed mb-6"></p>
-      <button
-        id="restart-btn"
-        class="rounded-xl bg-warm-500 hover:bg-warm-600 text-white px-8 py-2.5 text-sm font-medium transition shadow-sm"
-      >
-        重新开始
-      </button>
+      <footer id="input-area" class="game-footer">
+        <button type="button" id="help-btn" class="help-btn">ⓘ 请帮帮我</button>
+        <form id="message-form" class="message-form">
+          <input id="message-input" type="text" placeholder="说点什么…" autocomplete="off">
+          <button type="submit" id="send-btn" class="send-btn" aria-label="发送">➤</button>
+        </form>
+      </footer>
     </div>
   </div>
 
-  <script src="/app.js"></script>
+  <!-- Ending Overlay v1.0 -->
+  <div id="ending-overlay" class="hidden ending-overlay">
+    <div class="ending-card">
+      <div id="ending-icon-wrap" class="ending-icon-wrap"></div>
+      <p id="ending-meta" class="ending-meta"></p>
+      <h3 id="ending-title" class="ending-title"></h3>
+      <p id="ending-text" class="ending-text"></p>
+      <div id="ending-stats" class="ending-stats"></div>
+      <div class="ending-actions">
+        <button id="replay-btn" class="btn-neutral">再玩一次</button>
+        <button id="change-script-btn" class="btn-neutral">换一个剧本</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=3"></script>
 </body>
 </html>

@@ -1,0 +1,67 @@
+import logging
+from collections.abc import Iterator
+from typing import Any
+
+from game import llm_client, prompt_manager
+from game.llm_config import LLMConfig
+
+logger = logging.getLogger(__name__)
+
+ROLEPLAY_FALLBACK = {"reply": "……（唐晶一时语塞，似乎在整理思绪。）"}
+
+
+def _build_messages(
+    game_session: dict[str, Any],
+    player_message: str,
+    reaction: dict[str, str],
+) -> list[dict[str, str]]:
+    script = game_session["script"]
+    system = prompt_manager.render(
+        "roleplay/system.txt",
+        ai_character_name=script["ai_character"]["name"],
+        ai_character_persona=script["ai_character"]["persona"],
+        background=script["background"],
+    )
+    user = prompt_manager.render(
+        "roleplay/user.txt",
+        conversation_history=prompt_manager.format_history(game_session["history"]),
+        player_character_name=script["player_character"]["name"],
+        player_message=player_message,
+        reaction_tone=reaction.get("tone", "冷静"),
+        reaction_intensity=reaction.get("intensity", "中"),
+        reaction_focus=reaction.get("focus", "回应玩家"),
+        ai_character_name=script["ai_character"]["name"],
+    )
+    logger.info("[roleplay] system prompt:\n%s", system)
+    logger.info("[roleplay] user prompt:\n%s", user)
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+
+def respond(
+    game_session: dict[str, Any],
+    player_message: str,
+    reaction: dict[str, str],
+    config: LLMConfig,
+) -> dict[str, Any]:
+    messages = _build_messages(game_session, player_message, reaction)
+    try:
+        result = llm_client.chat_json(messages, config, ROLEPLAY_FALLBACK)
+    except Exception as exc:
+        logger.warning("[roleplay] LLM call failed: %s", exc)
+        return dict(ROLEPLAY_FALLBACK)
+
+    if not result.get("reply"):
+        logger.warning("[roleplay] JSON parse failed or empty reply, using fallback")
+        return dict(ROLEPLAY_FALLBACK)
+    return result
+
+
+def respond_stream(
+    game_session: dict[str, Any],
+    player_message: str,
+    reaction: dict[str, str],
+    config: LLMConfig,
+) -> Iterator[str]:
+    messages = _build_messages(game_session, player_message, reaction)
+    for chunk in llm_client.chat_stream(messages, config):
+        yield chunk

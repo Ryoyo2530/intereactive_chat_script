@@ -1,0 +1,12 @@
+【历史对话】
+{{conversation_history}}
+
+【玩家本轮发言】
+玩家（{{player_character_name}}）：{{player_message}}
+
+【本轮反应指导】
+情绪基调：{{reaction_tone}}
+情绪强度：{{reaction_intensity}}
+回应聚焦：{{reaction_focus}}
+
+请以 {{ai_character_name}} 的身份回复玩家。只返回 JSON：{"reply": "..."}，不要包含任何其他说明文字。

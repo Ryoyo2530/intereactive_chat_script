@@ -1,12 +1,15 @@
 import json
+import logging
 import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from game import llm_client
+from game import director, llm_client, roleplay, prompt_manager
 from game import llm_config
 from game import session as session_store
+
+logger = logging.getLogger(__name__)
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
@@ -63,7 +66,7 @@ def _evaluate_condition(condition: str, stats: dict[str, int]) -> bool:
     return True
 
 
-def _check_game_end(script: dict[str, Any], stats: dict[str, int], turn: int) -> tuple[bool, str | None, str | None]:
+def _rule_based_end(script: dict[str, Any], stats: dict[str, int], turn: int) -> tuple[bool, str | None, str | None]:
     if _evaluate_condition(script["lose_condition"], stats):
         return True, "lose", "唐晶的愤怒已经彻底爆发，她转身离开，再也不愿听你解释。"
     if _evaluate_condition(script["win_condition"], stats):
@@ -74,114 +77,14 @@ def _check_game_end(script: dict[str, Any], stats: dict[str, int], turn: int) ->
     return False, None, None
 
 
-def _build_system_prompt(script: dict[str, Any], stats: dict[str, int]) -> str:
-    stat_lines = "\n".join(f"- {name}: {value}" for name, value in stats.items())
-    return f"""你是一款互动文字游戏的 AI 角色扮演引擎。
-
-【剧本背景】
-{script["background"]}
-
-【AI 角色】
-姓名：{script["ai_character"]["name"]}
-人设：{script["ai_character"]["persona"]}
-
-【玩家角色】
-姓名：{script["player_character"]["name"]}
-
-【游戏目标】
-{script["objective"]}
-
-【当前数值状态】
-{stat_lines}
-
-【规则】
-1. 以 {script["ai_character"]["name"]} 的身份回复玩家，保持角色说话风格。
-2. 根据玩家的话合理调整数值（怀疑值、愤怒值等），变化幅度通常在 -15 到 +15 之间。
-3. 只返回 JSON，不要有任何其他文字。格式如下：
-{{
-  "reply": "角色回复文本",
-  "stat_changes": {{"怀疑值": -5, "愤怒值": 10}},
-  "game_over": false,
-  "ending_text": null
-}}
-4. 如果对话自然达到结局，可设置 game_over 为 true 并填写 ending_text；否则 game_over 为 false。
-5. stat_changes 只包含发生变化的数值，没变化的可以省略或为 0。"""
+def _session_llm_config(game_session: dict[str, Any]) -> llm_config.LLMConfig:
+    stored = game_session.get("llm_config")
+    if stored:
+        return llm_config.resolve_config(stored)
+    return llm_config.resolve_config(None)
 
 
-def _build_messages(game_session: dict[str, Any]) -> list[dict[str, str]]:
-    script = game_session["script"]
-    messages = [{"role": "system", "content": _build_system_prompt(script, game_session["stats"])}]
-    for entry in game_session["history"]:
-        role = "assistant" if entry["role"] == "assistant" else "user"
-        prefix = f"[{entry.get('character', '')}] " if entry.get("character") else ""
-        messages.append({"role": role, "content": prefix + entry["content"]})
-    return messages
-
-
-def _default_fallback() -> dict[str, Any]:
-    return {
-        "reply": "（唐晶沉默了一会儿，似乎在思考你说的话。）",
-        "stat_changes": {},
-        "game_over": False,
-        "ending_text": None,
-    }
-
-
-def _finalize_turn(
-    game_session: dict[str, Any],
-    result: dict[str, Any],
-    reply_override: str | None = None,
-) -> dict[str, Any]:
-    script = game_session["script"]
-    fallback = _default_fallback()
-    reply = reply_override or result.get("reply", fallback["reply"])
-    stat_changes = result.get("stat_changes") or {}
-
-    new_stats = dict(game_session["stats"])
-    for name, delta in stat_changes.items():
-        if name in new_stats and isinstance(delta, (int, float)):
-            new_stats[name] = int(new_stats[name] + delta)
-    new_stats = _clamp_stats(new_stats, script)
-    game_session["stats"] = new_stats
-
-    game_session["history"].append({
-        "role": "assistant",
-        "content": reply,
-        "character": script["ai_character"]["name"],
-    })
-
-    game_over = bool(result.get("game_over"))
-    ending_text = result.get("ending_text")
-    result_type = None
-
-    if not game_over:
-        game_over, result_type, rule_ending = _check_game_end(script, new_stats, game_session["turn"])
-        if game_over and not ending_text:
-            ending_text = rule_ending
-
-    if game_over:
-        game_session["game_over"] = True
-        game_session["ending_text"] = ending_text
-        if result_type is None:
-            if _evaluate_condition(script["win_condition"], new_stats):
-                result_type = "win"
-            else:
-                result_type = "lose"
-        game_session["result"] = result_type
-
-    return {
-        "reply": reply,
-        "stats": new_stats,
-        "stat_changes": stat_changes,
-        "turn": game_session["turn"],
-        "max_turns": script.get("max_turns", 15),
-        "game_over": game_over,
-        "result": result_type,
-        "ending_text": ending_text,
-    }
-
-
-def _prepare_turn(game_session: dict[str, Any], message: str) -> list[dict[str, str]]:
+def _prepare_turn(game_session: dict[str, Any], message: str) -> str:
     script = game_session["script"]
     game_session["history"].append({
         "role": "user",
@@ -189,11 +92,198 @@ def _prepare_turn(game_session: dict[str, Any], message: str) -> list[dict[str, 
         "character": script["player_character"]["name"],
     })
     game_session["turn"] += 1
-    return _build_messages(game_session)
+    return message
 
 
-def _session_llm_config(game_session: dict[str, Any]):
-    return llm_config.resolve_config(game_session.get("llm_config"))
+def _apply_stat_changes(game_session: dict[str, Any], stat_changes: dict[str, Any]) -> dict[str, int]:
+    script = game_session["script"]
+    new_stats = dict(game_session["stats"])
+    for name, delta in (stat_changes or {}).items():
+        if name in new_stats and isinstance(delta, (int, float)):
+            new_stats[name] = int(new_stats[name] + delta)
+    new_stats = _clamp_stats(new_stats, script)
+    game_session["stats"] = new_stats
+    return new_stats
+
+
+def _normalize_point_id(raw: Any) -> int | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float) and raw.is_integer():
+        return int(raw)
+    if isinstance(raw, str) and raw.strip().isdigit():
+        return int(raw.strip())
+    return None
+
+
+def _resolve_hit_deltas(
+    kp_hits: list[int],
+    kp_by_id: dict[int, dict[str, Any]],
+    pf_hits: list[int],
+    pf_by_id: dict[int, dict[str, Any]],
+    director_extra: dict[str, Any],
+) -> dict[str, int]:
+    ranges_by_stat: dict[str, list[tuple[int, int]]] = {}
+
+    for point_id in kp_hits:
+        for stat, spec in kp_by_id[point_id].get("hit_stat_changes", {}).items():
+            ranges_by_stat.setdefault(stat, []).append(prompt_manager.parse_stat_range(spec))
+    for point_id in pf_hits:
+        for stat, spec in pf_by_id[point_id].get("hit_stat_changes", {}).items():
+            ranges_by_stat.setdefault(stat, []).append(prompt_manager.parse_stat_range(spec))
+
+    merged: dict[str, int] = {}
+    for stat, ranges in ranges_by_stat.items():
+        total_lo = sum(r[0] for r in ranges)
+        total_hi = sum(r[1] for r in ranges)
+        director_value = director_extra.get(stat)
+        if isinstance(director_value, (int, float)):
+            picked = int(director_value)
+            if total_lo <= picked <= total_hi:
+                merged[stat] = picked
+                continue
+        merged[stat] = sum((lo + hi) // 2 for lo, hi in ranges)
+
+    return merged
+
+
+def _merge_director_stat_changes(
+    game_session: dict[str, Any],
+    director_result: dict[str, Any],
+) -> tuple[dict[str, int], list[int], list[int]]:
+    script = game_session["script"]
+    hit_kp_ids = [
+        pid for pid in (_normalize_point_id(i) for i in (director_result.get("hit_key_points") or []))
+        if pid is not None
+    ]
+    hit_pf_ids = [
+        pid for pid in (_normalize_point_id(i) for i in (director_result.get("hit_pitfalls") or []))
+        if pid is not None
+    ]
+
+    already_kp = set(game_session.get("hit_key_point_ids", []))
+    already_pf = set(game_session.get("hit_pitfall_ids", []))
+
+    kp_by_id = {item["id"]: item for item in script.get("key_points", []) if "id" in item}
+    pf_by_id = {item["id"]: item for item in script.get("pitfalls", []) if "id" in item}
+
+    validated_kp = [i for i in hit_kp_ids if i in kp_by_id and i not in already_kp]
+    validated_pf = [i for i in hit_pf_ids if i in pf_by_id and i not in already_pf]
+
+    director_extra = director_result.get("stat_changes") or {}
+    merged: dict[str, int] = {}
+
+    if validated_kp or validated_pf:
+        merged = _resolve_hit_deltas(
+            validated_kp, kp_by_id, validated_pf, pf_by_id, director_extra
+        )
+
+    hit_stats = set(merged.keys())
+    claimed_hits = bool(hit_kp_ids or hit_pf_ids)
+
+    if not validated_kp and not validated_pf:
+        if not claimed_hits:
+            for stat, delta in director_extra.items():
+                if isinstance(delta, (int, float)):
+                    merged[stat] = merged.get(stat, 0) + int(delta)
+    else:
+        for stat, delta in director_extra.items():
+            if stat not in hit_stats and isinstance(delta, (int, float)):
+                merged[stat] = merged.get(stat, 0) + int(delta)
+
+    game_session.setdefault("hit_key_point_ids", [])
+    game_session.setdefault("hit_pitfall_ids", [])
+    game_session["hit_key_point_ids"].extend(validated_kp)
+    game_session["hit_pitfall_ids"].extend(validated_pf)
+
+    return merged, validated_kp, validated_pf
+
+
+def _process_director_turn(
+    game_session: dict[str, Any],
+    director_result: dict[str, Any],
+) -> tuple[dict[str, int], dict[str, int]]:
+    stat_changes, validated_kp, validated_pf = _merge_director_stat_changes(
+        game_session, director_result
+    )
+    stats = _apply_stat_changes(game_session, stat_changes)
+    if validated_kp or validated_pf:
+        logger.info(
+            "[engine] key hits kp=%s pf=%s stat_changes=%s",
+            validated_kp,
+            validated_pf,
+            stat_changes,
+        )
+    return stats, stat_changes
+
+
+def _resolve_game_over(
+    game_session: dict[str, Any],
+    director_result: dict[str, Any],
+    stats: dict[str, int],
+) -> tuple[bool, str | None, str | None]:
+    script = game_session["script"]
+    game_over = bool(director_result.get("game_over"))
+    outcome = director_result.get("outcome")
+    ending_text = director_result.get("ending_text")
+
+    if not game_over:
+        game_over, rule_outcome, rule_ending = _rule_based_end(script, stats, game_session["turn"])
+        if game_over:
+            outcome = rule_outcome
+            if not ending_text:
+                ending_text = rule_ending
+
+    if game_over and not outcome:
+        if _evaluate_condition(script["win_condition"], stats):
+            outcome = "win"
+        else:
+            outcome = "lose"
+
+    return game_over, outcome, ending_text
+
+
+def _build_response(
+    game_session: dict[str, Any],
+    reply: str,
+    stat_changes: dict[str, Any],
+    game_over: bool,
+    outcome: str | None,
+    ending_text: str | None,
+) -> dict[str, Any]:
+    script = game_session["script"]
+
+    if not game_over:
+        game_session["history"].append({
+            "role": "assistant",
+            "content": reply,
+            "character": script["ai_character"]["name"],
+        })
+
+    if game_over:
+        game_session["game_over"] = True
+        game_session["ending_text"] = ending_text
+        game_session["result"] = outcome
+        if reply:
+            game_session["history"].append({
+                "role": "assistant",
+                "content": reply,
+                "character": script["ai_character"]["name"],
+            })
+
+    return {
+        "reply": reply,
+        "stats": game_session["stats"],
+        "stat_changes": stat_changes or {},
+        "turn": game_session["turn"],
+        "max_turns": script.get("max_turns", 15),
+        "game_over": game_over,
+        "outcome": outcome,
+        "result": outcome,
+        "ending_text": ending_text,
+    }
 
 
 def start_game(script_id: str, llm_override: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -216,6 +306,8 @@ def start_game(script_id: str, llm_override: dict[str, Any] | None = None) -> di
             "max_turns": script.get("max_turns", 15),
             "ai_character_name": script["ai_character"]["name"],
             "player_character_name": script["player_character"]["name"],
+            "stats_config": script.get("stats", {}),
+            "ending_titles": script.get("ending_titles", {}),
         },
         "opening_line": opening,
         "stats": game_session["stats"],
@@ -230,11 +322,27 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
     if game_session["game_over"]:
         raise ValueError("Game is already over")
 
-    messages = _prepare_turn(game_session, message)
-    fallback = _default_fallback()
+    player_message = _prepare_turn(game_session, message)
     cfg = _session_llm_config(game_session)
-    result = llm_client.chat_json(messages, cfg, fallback)
-    return _finalize_turn(game_session, result)
+
+    director_result = director.judge(game_session, player_message, cfg)
+    stats, stat_changes = _process_director_turn(game_session, director_result)
+
+    game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+
+    if game_over:
+        reply = ending_text or "游戏结束。"
+        return _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
+
+    reaction = director_result.get("reaction") or {}
+    roleplay_result = roleplay.respond(
+        game_session,
+        player_message,
+        reaction,
+        cfg,
+    )
+    reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
+    return _build_response(game_session, reply, stat_changes, False, None, None)
 
 
 def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, Any]]:
@@ -244,13 +352,25 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     if game_session["game_over"]:
         raise ValueError("Game is already over")
 
-    messages = _prepare_turn(game_session, message)
-    fallback = _default_fallback()
+    player_message = _prepare_turn(game_session, message)
     cfg = _session_llm_config(game_session)
+
+    director_result = director.judge(game_session, player_message, cfg)
+    stats, stat_changes = _process_director_turn(game_session, director_result)
+
+    game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+
+    if game_over:
+        reply = ending_text or "游戏结束。"
+        response = _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
+        yield {"type": "done", **response}
+        return
+
     accumulated = ""
     streamed_reply = ""
+    reaction = director_result.get("reaction") or {}
 
-    for chunk in llm_client.chat_stream(messages, cfg):
+    for chunk in roleplay.respond_stream(game_session, player_message, reaction, cfg):
         accumulated += chunk
         reply = llm_client.extract_reply_from_partial_json(accumulated)
         if len(reply) > len(streamed_reply):
@@ -258,15 +378,11 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
             streamed_reply = reply
 
     try:
-        result = llm_client.parse_json_response(accumulated)
+        parsed = llm_client.parse_json_response(accumulated)
+        reply = parsed.get("reply") or streamed_reply or roleplay.ROLEPLAY_FALLBACK["reply"]
     except Exception:
-        result = dict(fallback)
-        if streamed_reply:
-            result["reply"] = streamed_reply
+        logger.warning("[roleplay] stream JSON parse failed, using streamed/fallback reply")
+        reply = streamed_reply or roleplay.ROLEPLAY_FALLBACK["reply"]
 
-    response = _finalize_turn(
-        game_session,
-        result,
-        reply_override=streamed_reply or result.get("reply", fallback["reply"]),
-    )
+    response = _build_response(game_session, reply, stat_changes, False, None, None)
     yield {"type": "done", **response}

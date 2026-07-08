@@ -20,6 +20,8 @@ def create_session(script: dict[str, Any], llm_config: dict[str, str] | None = N
         "ending_text": None,
         "result": None,
         "llm_config": llm_config,
+        "hit_key_point_ids": [],
+        "hit_pitfall_ids": [],
     }
     return session_id
 

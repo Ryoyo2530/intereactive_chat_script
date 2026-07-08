@@ -1,0 +1,37 @@
+【剧本背景】
+{{background}}
+
+【游戏目标】
+{{objective}}
+
+【AI 角色】
+姓名：{{ai_character_name}}
+人设：{{ai_character_persona}}
+
+【本角色情绪词表】
+{{emotion_vocabulary}}
+
+【玩家角色】
+姓名：{{player_character_name}}
+
+【当前数值状态】
+{{current_stats}}
+
+【历史对话】
+{{conversation_history}}
+
+【玩家本轮发言】
+玩家（{{player_character_name}}）：{{player_message}}
+
+【待命中关键点】
+{{pending_key_points}}
+
+【待命中减分点】
+{{pending_pitfalls}}
+
+【胜负条件】
+胜利条件：{{win_condition}}
+失败条件：{{lose_condition}}
+当前轮次：{{current_turn}} / {{max_turns}}
+
+请根据以上信息，判断本轮命中的关键点/减分点、数值变化、结构化 reaction，以及是否触发游戏结束。只返回 JSON，不要包含任何其他说明文字。
