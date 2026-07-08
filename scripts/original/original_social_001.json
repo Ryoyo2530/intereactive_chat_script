@@ -111,8 +111,8 @@
     }
   ],
   "win_condition": "委屈值 <= 20 且 隔阂值 <= 20",
-  "lose_condition": "委屈值 >= 100",
-  "max_turns": 12,
+  "lose_condition": "委屈值 >= 90 或 隔阂值 >= 80",
+  "max_turns": 5,
   "opening_line": "（红着眼眶攥着手机，声音哽咽）我真的快气死了，他每次都这样，根本不在乎我的感受！",
   "ending_titles": {
     "win": "分寸得当，暖心挚友",

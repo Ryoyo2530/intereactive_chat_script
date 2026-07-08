@@ -635,7 +635,10 @@ async function sendMessage(message) {
 
     if (!finalData) throw new Error('Stream ended without result');
 
-    if (!gotToken) {
+    if (finalData.game_over) {
+      if (typingBubble?.wrapper?.parentNode) typingBubble.wrapper.remove();
+      if (streamBubble?.wrapper?.parentNode) streamBubble.wrapper.remove();
+    } else if (!gotToken) {
       typingBubble.wrapper.remove();
       appendMessage('assistant', finalData.reply, state.aiName, finalData.emotion_tag || '');
     } else {

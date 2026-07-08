@@ -1144,7 +1144,7 @@ $('#conflict-cancel').addEventListener('click', () => {
 // ── Simulate ──────────────────────────────────────────────────────────────────
 
 function simAddMessage(role, text, opts = {}) {
-  const { emotionTag = '', turn = null, debugData = null } = opts;
+  const { emotionTag = '', turn = null, debugData = null, debugOnly = false } = opts;
   const container = $('#sim-messages');
   const wrapper = document.createElement('div');
   wrapper.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
@@ -1155,17 +1155,19 @@ function simAddMessage(role, text, opts = {}) {
     bubble.innerHTML = `<div class="bubble-body">${escHtml(text)}</div>`;
     wrapper.appendChild(bubble);
   } else if (role === 'ai') {
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble-ai';
-    const name = state.simAiName || 'AI';
-    const badgeHtml = emotionTag
-      ? ` · <span class="emotion-badge">${escHtml(emotionTag)}</span>`
-      : '';
-    bubble.innerHTML = `
-      <p class="bubble-meta">${escHtml(name)}${badgeHtml}</p>
-      <div class="bubble-body">${escHtml(text)}</div>
-    `;
-    wrapper.appendChild(bubble);
+    if (!debugOnly) {
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble-ai';
+      const name = state.simAiName || 'AI';
+      const badgeHtml = emotionTag
+        ? ` · <span class="emotion-badge">${escHtml(emotionTag)}</span>`
+        : '';
+      bubble.innerHTML = `
+        <p class="bubble-meta">${escHtml(name)}${badgeHtml}</p>
+        <div class="bubble-body">${escHtml(text)}</div>
+      `;
+      wrapper.appendChild(bubble);
+    }
 
     if (debugData) {
       const turnLabel = turn != null ? ` · 第 ${turn} 轮` : '';
@@ -1373,16 +1375,25 @@ async function simSend() {
   const data = await res.json();
   simUpdateStats(data.stats);
   pushStatTimeline(data.turn, data.stats, data.stat_changes || {});
-  simAddMessage('ai', data.reply, {
-    emotionTag: data.emotion_tag,
-    turn: data.turn,
-    debugData: data._debug,
-  });
+
+  if (data.game_over) {
+    simAddMessage('system', `对局结束 · ${data.outcome === 'win' ? '胜利 🎉' : '失败'} · ${data.ending_text || ''}`);
+    if (data._debug) {
+      simAddMessage('ai', '', { turn: data.turn, debugData: data._debug, debugOnly: true });
+    }
+  } else {
+    simAddMessage('ai', data.reply, {
+      emotionTag: data.emotion_tag,
+      turn: data.turn,
+      debugData: data._debug,
+    });
+  }
 
   state.debugLog.push({
     turn: data.turn,
     player_message: msg,
-    reply: data.reply,
+    reply: data.game_over ? '' : data.reply,
+    ending_text: data.ending_text,
     emotion_tag: data.emotion_tag,
     stats: data.stats,
     stat_changes: data.stat_changes,
@@ -1394,7 +1405,6 @@ async function simSend() {
   $('#sim-export-debug-btn').disabled = false;
 
   if (data.game_over) {
-    simAddMessage('system', `对局结束 · ${data.outcome === 'win' ? '胜利 🎉' : '失败'} · ${data.ending_text || ''}`);
     $('#sim-input').disabled = true;
     $('#sim-send-btn').disabled = true;
   }

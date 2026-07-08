@@ -33,14 +33,42 @@ def _evaluate_condition(condition: str, stats: dict[str, int]) -> bool:
     return condition_parser.evaluate(condition, stats)
 
 
+def _script_ending_text(
+    script: dict[str, Any],
+    outcome: str,
+    *,
+    timeout: bool = False,
+) -> str:
+    """Resolve fallback ending copy from script JSON (ending_lines > ending_titles)."""
+    lines = script.get("ending_lines") or script.get("ending_texts") or {}
+    titles = script.get("ending_titles") or {}
+    ai_name = (script.get("ai_character") or {}).get("name") or "对方"
+    max_turns = script.get("max_turns", 15)
+
+    if timeout:
+        text = lines.get("timeout") or titles.get("timeout")
+        if text:
+            return str(text)
+        return f"对话进行了 {max_turns} 轮仍未明朗收场，{ai_name}失去了耐心。"
+
+    key = outcome if outcome in ("win", "lose") else "lose"
+    text = lines.get(key) or titles.get(key)
+    if text:
+        return str(text)
+
+    if key == "win":
+        return "你成功达成了目标。"
+    return "未能达成目标，对局结束。"
+
+
 def _rule_based_end(script: dict[str, Any], stats: dict[str, int], turn: int) -> tuple[bool, str | None, str | None]:
     if _evaluate_condition(script["lose_condition"], stats):
-        return True, "lose", "唐晶的愤怒已经彻底爆发，她转身离开，再也不愿听你解释。"
+        return True, "lose", _script_ending_text(script, "lose")
     if _evaluate_condition(script["win_condition"], stats):
-        return True, "win", "唐晶的表情渐渐柔和下来，她轻轻叹了口气：「好吧，我相信你。」"
+        return True, "win", _script_ending_text(script, "win")
     max_turns = script.get("max_turns", 15)
     if turn >= max_turns:
-        return True, "lose", f"对话进行了 {max_turns} 轮仍未化解矛盾，唐晶失去了耐心，游戏结束。"
+        return True, "lose", _script_ending_text(script, "lose", timeout=True)
     return False, None, None
 
 
@@ -248,15 +276,9 @@ def _build_response(
         game_session["game_over"] = True
         game_session["ending_text"] = ending_text
         game_session["result"] = outcome
-        if reply:
-            game_session["history"].append({
-                "role": "assistant",
-                "content": reply,
-                "character": script["ai_character"]["name"],
-            })
 
     return {
-        "reply": reply,
+        "reply": "" if game_over else reply,
         "emotion_tag": emotion_tag,
         "stats": game_session["stats"],
         "stat_changes": stat_changes or {},
@@ -344,8 +366,7 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
 
     if game_over:
-        reply = ending_text or "游戏结束。"
-        return _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
+        return _build_response(game_session, "", stat_changes, True, outcome, ending_text)
 
     reaction = director_result.get("reaction") or {}
     roleplay_result = roleplay.respond(
@@ -395,8 +416,7 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
 
     if game_over:
-        reply = ending_text or "游戏结束。"
-        response = _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
+        response = _build_response(game_session, "", stat_changes, True, outcome, ending_text)
         response["_debug"] = {
             "director": _agent_debug_payload(director_result, director_meta, director_cfg),
             "roleplay": None,
@@ -442,8 +462,7 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
 
     if game_over:
-        reply = ending_text or "游戏结束。"
-        response = _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
+        response = _build_response(game_session, "", stat_changes, True, outcome, ending_text)
         yield {"type": "done", **response}
         return
 
