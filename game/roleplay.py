@@ -7,7 +7,14 @@ from game.llm_config import LLMConfig
 
 logger = logging.getLogger(__name__)
 
-ROLEPLAY_FALLBACK = {"reply": "……（唐晶一时语塞，似乎在整理思绪。）"}
+ROLEPLAY_FALLBACK = {"reply": "……（唐晶一时语塞，似乎在整理思绪。）", "emotion_tag": ""}
+
+
+def _validate_emotion_tag(tag: Any, script: dict[str, Any]) -> str:
+    vocab: list[str] = script.get("ai_character", {}).get("emotion_vocabulary", [])
+    if isinstance(tag, str) and tag.strip() in vocab:
+        return tag.strip()
+    return ""
 
 
 def _build_messages(
@@ -30,6 +37,7 @@ def _build_messages(
         reaction_tone=reaction.get("tone", "冷静"),
         reaction_intensity=reaction.get("intensity", "中"),
         reaction_focus=reaction.get("focus", "回应玩家"),
+        emotion_vocabulary=prompt_manager.format_emotion_vocabulary(script),
         ai_character_name=script["ai_character"]["name"],
     )
     logger.info("[roleplay] system prompt:\n%s", system)
@@ -53,6 +61,8 @@ def respond(
     if not result.get("reply"):
         logger.warning("[roleplay] JSON parse failed or empty reply, using fallback")
         return dict(ROLEPLAY_FALLBACK)
+
+    result["emotion_tag"] = _validate_emotion_tag(result.get("emotion_tag"), game_session["script"])
     return result
 
 

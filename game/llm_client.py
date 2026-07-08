@@ -48,6 +48,13 @@ def extract_reply_from_partial_json(text: str) -> str:
     return _decode_json_string_partial(match.group(1))
 
 
+def extract_emotion_tag_from_partial_json(text: str) -> str:
+    match = re.search(r'"emotion_tag"\s*:\s*"([^"\\]*)"', text)
+    if not match:
+        return ""
+    return match.group(1).strip()
+
+
 def _client_for(config: LLMConfig) -> OpenAI:
     return OpenAI(api_key=config.api_key, base_url=config.api_base)
 

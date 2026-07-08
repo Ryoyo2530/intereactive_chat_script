@@ -106,23 +106,23 @@ def _apply_stat_changes(game_session: dict[str, Any], stat_changes: dict[str, An
     return new_stats
 
 
-def _normalize_point_id(raw: Any) -> int | None:
+def _normalize_point_id(raw: Any) -> str | None:
     if isinstance(raw, bool):
         return None
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
     if isinstance(raw, int):
-        return raw
+        return str(raw)
     if isinstance(raw, float) and raw.is_integer():
-        return int(raw)
-    if isinstance(raw, str) and raw.strip().isdigit():
-        return int(raw.strip())
+        return str(int(raw))
     return None
 
 
 def _resolve_hit_deltas(
-    kp_hits: list[int],
-    kp_by_id: dict[int, dict[str, Any]],
-    pf_hits: list[int],
-    pf_by_id: dict[int, dict[str, Any]],
+    kp_hits: list[str],
+    kp_by_id: dict[str, dict[str, Any]],
+    pf_hits: list[str],
+    pf_by_id: dict[str, dict[str, Any]],
     director_extra: dict[str, Any],
 ) -> dict[str, int]:
     ranges_by_stat: dict[str, list[tuple[int, int]]] = {}
@@ -152,7 +152,7 @@ def _resolve_hit_deltas(
 def _merge_director_stat_changes(
     game_session: dict[str, Any],
     director_result: dict[str, Any],
-) -> tuple[dict[str, int], list[int], list[int]]:
+) -> tuple[dict[str, int], list[str], list[str]]:
     script = game_session["script"]
     hit_kp_ids = [
         pid for pid in (_normalize_point_id(i) for i in (director_result.get("hit_key_points") or []))
@@ -252,6 +252,7 @@ def _build_response(
     game_over: bool,
     outcome: str | None,
     ending_text: str | None,
+    emotion_tag: str = "",
 ) -> dict[str, Any]:
     script = game_session["script"]
 
@@ -275,6 +276,7 @@ def _build_response(
 
     return {
         "reply": reply,
+        "emotion_tag": emotion_tag,
         "stats": game_session["stats"],
         "stat_changes": stat_changes or {},
         "turn": game_session["turn"],
@@ -342,7 +344,8 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
         cfg,
     )
     reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
-    return _build_response(game_session, reply, stat_changes, False, None, None)
+    emotion_tag = roleplay_result.get("emotion_tag", "")
+    return _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
 
 
 def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, Any]]:
@@ -368,21 +371,33 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
 
     accumulated = ""
     streamed_reply = ""
+    streamed_emotion_tag = ""
+    gotToken = False
     reaction = director_result.get("reaction") or {}
 
     for chunk in roleplay.respond_stream(game_session, player_message, reaction, cfg):
         accumulated += chunk
+
+        if not streamed_emotion_tag:
+            extracted_tag = llm_client.extract_emotion_tag_from_partial_json(accumulated)
+            if extracted_tag:
+                streamed_emotion_tag = extracted_tag
+                yield {"type": "emotion_tag", "emotion_tag": streamed_emotion_tag}
+
         reply = llm_client.extract_reply_from_partial_json(accumulated)
         if len(reply) > len(streamed_reply):
             yield {"type": "token", "content": reply[len(streamed_reply):]}
             streamed_reply = reply
+            gotToken = True
 
     try:
         parsed = llm_client.parse_json_response(accumulated)
         reply = parsed.get("reply") or streamed_reply or roleplay.ROLEPLAY_FALLBACK["reply"]
+        emotion_tag = roleplay._validate_emotion_tag(parsed.get("emotion_tag"), game_session["script"])
     except Exception:
         logger.warning("[roleplay] stream JSON parse failed, using streamed/fallback reply")
         reply = streamed_reply or roleplay.ROLEPLAY_FALLBACK["reply"]
+        emotion_tag = ""
 
-    response = _build_response(game_session, reply, stat_changes, False, None, None)
+    response = _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
     yield {"type": "done", **response}

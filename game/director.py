@@ -69,19 +69,19 @@ def _build_messages(game_session: dict[str, Any], player_message: str) -> list[d
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def _normalize_hit_ids(raw: Any) -> list[int]:
+def _normalize_hit_ids(raw: Any) -> list[str]:
     if not isinstance(raw, list):
         return []
-    ids: list[int] = []
+    ids: list[str] = []
     for item in raw:
         if isinstance(item, bool):
             continue
-        if isinstance(item, int):
-            ids.append(item)
+        if isinstance(item, str) and item.strip():
+            ids.append(item.strip())
+        elif isinstance(item, int):
+            ids.append(str(item))
         elif isinstance(item, float) and item.is_integer():
-            ids.append(int(item))
-        elif isinstance(item, str) and item.strip().isdigit():
-            ids.append(int(item.strip()))
+            ids.append(str(int(item)))
     return ids
 
 

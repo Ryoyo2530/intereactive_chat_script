@@ -9,4 +9,7 @@
 情绪强度：{{reaction_intensity}}
 回应聚焦：{{reaction_focus}}
 
-请以 {{ai_character_name}} 的身份回复玩家。只返回 JSON：{"reply": "..."}，不要包含任何其他说明文字。
+【可选情绪标签】
+{{emotion_vocabulary}}
+
+请以 {{ai_character_name}} 的身份回复玩家。只返回 JSON：{"emotion_tag": "...", "reply": "..."}，不要包含任何其他说明文字。

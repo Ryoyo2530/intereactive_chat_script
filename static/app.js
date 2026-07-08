@@ -185,6 +185,16 @@ function scrollChatToBottom() {
   area.scrollTop = area.scrollHeight;
 }
 
+function renderEmotionTag(nameEl, tag) {
+  const existing = nameEl.querySelector('.emotion-tag');
+  if (existing) existing.remove();
+  if (!tag) return;
+  const badge = document.createElement('span');
+  badge.className = 'emotion-tag';
+  badge.textContent = tag;
+  nameEl.appendChild(badge);
+}
+
 function createMessageBubble(role, character) {
   const wrapper = document.createElement('div');
   wrapper.className = `msg-enter msg-row ${role === 'user' ? 'user' : 'ai'}`;
@@ -209,33 +219,34 @@ function createMessageBubble(role, character) {
     wrapper.appendChild(nameEl);
   }
 
-  return { wrapper, text };
+  return { wrapper, text, nameEl };
 }
 
-function appendMessage(role, content, character) {
+function appendMessage(role, content, character, emotionTag = '') {
   const area = $('#chat-area');
-  const { wrapper, text } = createMessageBubble(role, character);
+  const { wrapper, text, nameEl } = createMessageBubble(role, character);
   text.textContent = content;
+  if (role === 'assistant' && emotionTag) renderEmotionTag(nameEl, emotionTag);
   area.appendChild(wrapper);
   scrollChatToBottom();
 }
 
 function appendTypingBubble(character) {
   const area = $('#chat-area');
-  const { wrapper, text } = createMessageBubble('assistant', character);
+  const { wrapper, text, nameEl } = createMessageBubble('assistant', character);
   wrapper.dataset.typing = 'true';
   text.innerHTML = '<span class="typing-dots-v1 inline-flex gap-1"><span></span><span></span><span></span></span>';
   area.appendChild(wrapper);
   scrollChatToBottom();
-  return { wrapper, text };
+  return { wrapper, text, nameEl };
 }
 
 function promoteTypingBubbleToStream(bubbleRef, character) {
-  const { wrapper, text } = bubbleRef;
+  const { wrapper, text, nameEl } = bubbleRef;
   delete wrapper.dataset.typing;
   text.textContent = '';
   text.classList.add('streaming-text');
-  return { wrapper, text };
+  return { wrapper, text, nameEl };
 }
 
 function showEnding(outcome, text) {
@@ -415,7 +426,13 @@ async function sendMessage(message) {
       buffer = rest;
 
       for (const event of events) {
-        if (event.type === 'token') {
+        if (event.type === 'emotion_tag') {
+          if (!gotToken) {
+            streamBubble = promoteTypingBubbleToStream(typingBubble, state.aiName);
+            gotToken = true;
+          }
+          renderEmotionTag(streamBubble.nameEl, event.emotion_tag);
+        } else if (event.type === 'token') {
           if (!gotToken) {
             streamBubble = promoteTypingBubbleToStream(typingBubble, state.aiName);
             gotToken = true;
@@ -432,12 +449,13 @@ async function sendMessage(message) {
 
     if (!gotToken) {
       typingBubble.wrapper.remove();
-      appendMessage('assistant', finalData.reply, state.aiName);
+      appendMessage('assistant', finalData.reply, state.aiName, finalData.emotion_tag || '');
     } else {
       streamBubble.text.classList.remove('streaming-text');
       if (finalData.reply && streamBubble.text.textContent !== finalData.reply) {
         streamBubble.text.textContent = finalData.reply;
       }
+      renderEmotionTag(streamBubble.nameEl, finalData.emotion_tag || '');
     }
 
     state.stats = finalData.stats;

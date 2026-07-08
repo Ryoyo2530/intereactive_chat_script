@@ -1,6 +1,6 @@
 # 入戏
 
-AI 互动文字游戏框架。选剧本 → 对话 → 数值变化 → 触发结局。
+AI 互动文字游戏demo。选剧本 → 对话 → 数值变化 → 触发结局。
 
 ## 本地运行
 
@@ -56,5 +56,5 @@ Render 监听 `main` 分支（见 `render.yaml` 中 `branch: main`），**只有
 
 > 无需在 Render 配置 `LLM_API_KEY`——访客通过网页自行填写 Key 即可。
 
-Build: `pip install -r requirements.txt`  
+Build: `pip install -r requirements.txt`
 Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
