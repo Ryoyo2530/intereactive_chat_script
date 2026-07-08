@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入戏 · 剧本选择预览</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #c97862;
+      --accent-dark: #a85e4a;
+      --surface: #faf8f6;
+      --card: #ffffff;
+      --border: rgba(0,0,0,0.07);
+      --text-primary: #1c1917;
+      --text-secondary: #78716c;
+      --text-muted: #a8a29e;
+      --serif: 'Noto Serif SC', serif;
+      --display: 'Ma Shan Zheng', 'Noto Serif SC', serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(160deg, #fdf6f3 0%, #fdf2f0 40%, #fef1f2 70%, #fff5f0 100%);
+      font-family: -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 24px 16px 48px;
+      color: var(--text-primary);
+    }
+
+    .page {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    /* ── Header ── */
+    .site-header {
+      text-align: center;
+      padding: 28px 0 32px;
+    }
+
+    .site-title {
+      font-family: var(--display);
+      font-size: 42px;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      line-height: 1;
+    }
+
+    .site-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 10px 0 0;
+    }
+
+    .site-divider-line {
+      width: 32px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #c97862 50%, transparent);
+      opacity: 0.6;
+    }
+
+    .site-slogan {
+      font-family: var(--serif);
+      font-size: 13px;
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      color: #b35d4a;
+      padding-left: 0.3em;
+    }
+
+    .site-tagline {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Category Section ── */
+    .category {
+      margin-bottom: 20px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 0.5px solid var(--border);
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(8px);
+    }
+
+    .category-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px 16px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 0.5px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    .category-header:hover { background: rgba(201,120,98,0.04); }
+
+    .category-header-left {}
+
+    .category-name {
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: 0.04em;
+    }
+
+    .category-subtitle {
+      margin-top: 2px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .category-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .category-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(0,0,0,0.05);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .chevron {
+      width: 18px;
+      height: 18px;
+      color: var(--text-muted);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      flex-shrink: 0;
+    }
+
+    .category.collapsed .chevron { transform: rotate(-90deg); }
+
+    /* ── Cards Container ── */
+    .cards-container {
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.3s ease;
+      max-height: 1200px;
+      opacity: 1;
+    }
+
+    .category.collapsed .cards-container {
+      max-height: 0;
+      opacity: 0;
+    }
+
+    .cards-inner {
+      padding: 12px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ── Script Card ── */
+    .script-card {
+      background: var(--card);
+      border-radius: 14px;
+      border: 0.5px solid var(--border);
+      padding: 14px 16px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .script-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(201,120,98,0.03) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .script-card:hover {
+      border-color: rgba(201,120,98,0.35);
+      box-shadow: 0 2px 12px rgba(201,120,98,0.1);
+      transform: translateY(-1px);
+    }
+
+    .script-card:hover::before { opacity: 1; }
+
+    .script-card.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(201,120,98,0.15), 0 2px 12px rgba(201,120,98,0.12);
+    }
+
+    .script-card.selected::before { opacity: 1; }
+
+    /* Tag row */
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 9px;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+    }
+
+    /* Title */
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.4;
+      margin-bottom: 6px;
+      letter-spacing: 0.01em;
+    }
+
+    /* Teaser */
+    .card-teaser {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    /* Bottom row */
+    .card-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-role {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.01em;
+    }
+
+    .card-turns {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Fade-in animation */
+    .category { animation: fadeUp 0.4s ease-out both; }
+    .category:nth-child(2) { animation-delay: 0.08s; }
+    .category:nth-child(3) { animation-delay: 0.16s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .script-card {
+      animation: cardIn 0.35s ease-out both;
+    }
+    .cards-inner .script-card:nth-child(1) { animation-delay: 0.05s; }
+    .cards-inner .script-card:nth-child(2) { animation-delay: 0.10s; }
+    .cards-inner .script-card:nth-child(3) { animation-delay: 0.15s; }
+    .cards-inner .script-card:nth-child(4) { animation-delay: 0.20s; }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="site-title">入戏</div>
+    <div class="site-divider">
+      <span class="site-divider-line"></span>
+      <span class="site-slogan">另一半台词</span>
+      <span class="site-divider-line"></span>
+    </div>
+    <p class="site-tagline">选择剧本，开启一段对话式剧情冒险</p>
+  </header>
+
+  <!-- Category 1: 影视热梗 -->
+  <div class="category" id="cat-fanfic">
+    <div class="category-header" onclick="toggleCategory('cat-fanfic')">
+      <div class="category-header-left">
+        <div class="category-name">影视热梗</div>
+        <div class="category-subtitle">这一世由你夺回一切</div>
+      </div>
+      <div class="category-meta">
+        <span class="category-count">2 个剧本</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+    </div>
+    <div class="cards-container">
+      <div class="cards-inner">
+
+        <div class="script-card" onclick="selectCard(this)">
+          <div class="tag-row">
+            <span class="tag" style="background:#EDE9FE;color:#5B21B6">影视同人</span>
+            <span class="tag" style="background:#FEF3C7;color:#92400E">友情</span>
+          </div>
+          <div class="card-title">我的前半生 · 唐晶篇</div>
+          <div class="card-teaser">罗子君与贺涵的关系让唐晶心生芥蒂，你该如何解释才能挽回这段友情？</div>
+          <div class="card-bottom">
+            <span class="card-role">扮演 罗子君 · 对手 唐晶</span>
+            <span class="card-turns">约 10-15 轮</span>
+          </div>
+        </div>
+
+        <div class="script-card" onclick="selectCard(this)">
+          <div class="tag-row">
+            <span class="tag" style="background:#EDE9FE;color:#5B21B6">影视同人</span>
+            <span class="tag" style="background:#FEE2E2;color:#991B1B">恋爱</span>
+          </div>
+          <div class="card-title">甄嬛传 · 行宫叙旧</div>
+          <div class="card-teaser">甄嬛回宫前夕，皇帝召见。三年分离、物是人非，你能重新燃起他的心？</div>
+          <div class="card-bottom">
+            <span class="card-role">扮演 甄嬛 · 对手 皇帝（雍正）</span>
+            <span class="card-turns">约 10-15 轮</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Category 2: 你也一定遇到过 -->
+  <div class="category" id="cat-original">
+    <div class="category-header" onclick="toggleCategory('cat-original')">
+      <div class="category-header-left">
+        <div class="category-name">你也一定遇到过</div>
+        <div class="category-subtitle">如何炼就一张好嘴</div>
+      </div>
+      <div class="category-meta">
+        <span class="category-count">4 个剧本</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+    </div>
+    <div class="cards-container">
+      <div class="cards-inner">
+
+        <div class="script-card" onclick="selectCard(this)">
+          <div class="tag-row">
+            <span class="tag" style="background:#FCE7F3;color:#9D174D">你也一定遇到过</span>
+            <span class="tag" style="background:#FEE2E2;color:#991B1B">恋爱</span>
+          </div>
+          <div class="card-title">今天必须哄好我</div>
+          <div class="card-teaser">你忘记了两年纪念日，对象正在气头上。这次你得想清楚怎么开口。</div>
+          <div class="card-bottom">
+            <span class="card-role">扮演 你自己 · 对手 生气的TA</span>
+            <span class="card-turns">约 8-12 轮</span>
+          </div>
+        </div>
+
+        <div class="script-card" onclick="selectCard(this)">
+          <div class="tag-row">
+            <span class="tag" style="background:#FCE7F3;color:#9D174D">你也一定遇到过</span>
+            <span class="tag" style="background:#FEE2E2;color:#991B1B">恋爱</span>
+          </div>
+          <div class="card-title">冷战破冰告白</div>
+          <div class="card-teaser">莫名惹恋人生气，如何精准破冰修复关系？</div>
+          <div class="card-bottom">
+            <span class="card-role">扮演恋人 · 闹别扭的伴侣</span>
+            <span class="card-turns">约 8-12 轮</span>
+          </div>
+        </div>
+
+        <div class="script-card" onclick="selectCard(this)">
+          <div class="tag-row">
+            <span class="tag" style="background:#FCE7F3;color:#9D174D">你也一定遇到过</span>
+            <span class="tag" style="background:#DBEAFE;color:#1E40AF">职场</span>
+          </div>
+          <div class="card-title">老板，我值得涨薪</div>
+          <div class="card-teaser">三年没涨薪，今天你敲开了老板的办公室门。机会只有一次，说清楚，说到位。</div>
+          <div class="card-bottom">
+            <span class="card-role">扮演 你自己 · 对手 你的老板</span>
+            <span class="card-turns">约 8-12 轮</span>
+          </div>
+        </div>
+
+        <div class="script-card" onclick="selectCard(this)">
+          <div class="tag-row">
+            <span class="tag" style="background:#FCE7F3;color:#9D174D">你也一定遇到过</span>
+            <span class="tag" style="background:#FEF3C7;color:#92400E">友情</span>
+          </div>
+          <div class="card-title">挚友吐槽的边界难题</div>
+          <div class="card-teaser">朋友疯狂吐槽恋人，如何拿捏分寸不做小丑？</div>
+          <div class="card-bottom">
+            <span class="card-role">扮演挚友 · 情绪崩溃的恋爱脑好友</span>
+            <span class="card-turns">约 8-12 轮</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleCategory(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+
+  function selectCard(el) {
+    // deselect others in same category
+    const container = el.closest('.cards-inner');
+    container.querySelectorAll('.script-card').forEach(c => c.classList.remove('selected'));
+    el.classList.toggle('selected');
+  }
+</script>
+</body>
+</html>

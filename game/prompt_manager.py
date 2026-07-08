@@ -73,17 +73,17 @@ def _format_point_line(item: dict) -> str:
     return f"- [{item['id']}] {title}：{description}（数值变化区间：{ranges}）"
 
 
-def format_pending_key_points(script: dict, hit_ids: set[int] | list[int]) -> str:
-    hit = set(hit_ids)
-    pending = [kp for kp in script.get("key_points", []) if kp.get("id") not in hit]
+def format_pending_key_points(script: dict, hit_ids: set | list) -> str:
+    hit = set(str(i) for i in hit_ids)
+    pending = [kp for kp in script.get("key_points", []) if str(kp.get("id", "")) not in hit]
     if not pending:
         return "（无，已全部命中或剧本未配置）"
     return "\n".join(_format_point_line(item) for item in pending)
 
 
-def format_pending_pitfalls(script: dict, hit_ids: set[int] | list[int]) -> str:
-    hit = set(hit_ids)
-    pending = [pf for pf in script.get("pitfalls", []) if pf.get("id") not in hit]
+def format_pending_pitfalls(script: dict, hit_ids: set | list) -> str:
+    hit = set(str(i) for i in hit_ids)
+    pending = [pf for pf in script.get("pitfalls", []) if str(pf.get("id", "")) not in hit]
     if not pending:
         return "（无，已全部命中或剧本未配置）"
     return "\n".join(_format_point_line(item) for item in pending)

@@ -5,7 +5,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -36,6 +36,8 @@ class LLMConfigRequest(BaseModel):
 class StartSessionRequest(BaseModel):
     script_id: str
     llm_config: LLMConfigRequest | None = None
+    ai_name: str | None = None
+    ai_persona: str | None = None
 
 
 class MessageRequest(BaseModel):
@@ -70,11 +72,41 @@ def get_scripts():
     return {"scripts": engine.list_scripts()}
 
 
+@app.get("/api/scripts/{script_id}/detail")
+def get_script_detail(script_id: str):
+    try:
+        script = engine.load_script(script_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Script not found")
+    ai = script.get("ai_character", {})
+    player = script.get("player_character", {})
+    return {
+        "id": script["id"],
+        "title": script["title"],
+        "origin_tag": script.get("origin_tag", ""),
+        "briefing": script.get("briefing", script.get("teaser", "")),
+        "objective": script.get("objective", ""),
+        "ai_character": {
+            "name": ai.get("name", ""),
+            "intro": ai.get("intro", ""),
+        },
+        "player_character": {
+            "name": player.get("name", ""),
+            "persona": player.get("persona", ""),
+        },
+    }
+
+
 @app.post("/api/session/start")
 def start_session(body: StartSessionRequest):
     try:
         override = body.llm_config.model_dump() if body.llm_config else None
-        return engine.start_game(body.script_id, llm_override=override)
+        return engine.start_game(
+            body.script_id,
+            llm_override=override,
+            ai_name=body.ai_name,
+            ai_persona=body.ai_persona,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")
     except ValueError as exc:
@@ -112,4 +144,14 @@ def send_message_stream(body: MessageRequest):
 
 
 static_dir = Path(__file__).resolve().parent / "static"
-app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+
+
+@app.get("/")
+async def serve_index():
+    return FileResponse(
+        static_dir / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+app.mount("/", StaticFiles(directory=str(static_dir)), name="static")

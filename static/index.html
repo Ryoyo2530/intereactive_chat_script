@@ -25,10 +25,10 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="stylesheet" href="/style.css?v=6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-warm-50 via-rose-50 to-orange-50 text-stone-800">
 
@@ -54,7 +54,7 @@
     </div>
 
     <!-- Tab: Available Scripts -->
-    <div id="tab-scripts" class="tab-panel w-full max-w-md space-y-4">
+    <div id="tab-scripts" class="tab-panel w-full max-w-md space-y-3">
       <div id="config-warning" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         请先完成 <button type="button" data-tab-link="settings" class="font-semibold underline">LLM 配置</button> 后再开始游戏
       </div>
@@ -137,7 +137,10 @@
             <h2 id="game-title"></h2>
             <p id="game-objective"></p>
           </div>
-          <span id="turn-indicator"></span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="turn-indicator"></span>
+            <button type="button" id="exit-game-btn" title="退出剧情">退出</button>
+          </div>
         </div>
         <div id="stats-bar" class="stats-bar"></div>
       </header>
@@ -151,6 +154,61 @@
           <button type="submit" id="send-btn" class="send-btn" aria-label="发送">➤</button>
         </form>
       </footer>
+    </div>
+  </div>
+
+  <!-- Script Briefing Modal -->
+  <div id="briefing-overlay" class="hidden ending-overlay" style="z-index:60">
+    <div class="briefing-modal ending-card" style="max-width:400px;text-align:left;padding:0;overflow:hidden;">
+
+      <!-- Step indicator -->
+      <div class="briefing-steps">
+        <span class="briefing-step active" data-step="1">入场须知</span>
+        <span class="briefing-step-sep">›</span>
+        <span class="briefing-step" data-step="2">人物介绍</span>
+      </div>
+
+      <!-- Step 1: Briefing -->
+      <div id="briefing-step-1" class="briefing-pane">
+        <p id="briefing-script-title" class="briefing-script-title"></p>
+        <p id="briefing-text" class="briefing-body"></p>
+        <div class="briefing-objective-block">
+          <span class="briefing-objective-label">你的任务</span>
+          <p id="briefing-objective"></p>
+        </div>
+        <div class="briefing-actions">
+          <button id="briefing-cancel-btn" class="btn-neutral" style="flex:1">取消</button>
+          <button id="briefing-next-btn" class="briefing-primary-btn" style="flex:2">了解了，继续 →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Character intro + optional player setup -->
+      <div id="briefing-step-2" class="briefing-pane hidden">
+        <p class="briefing-section-label">对方是谁</p>
+        <div class="briefing-char-card">
+          <span id="briefing-ai-name" class="briefing-char-name"></span>
+          <p id="briefing-ai-intro" class="briefing-char-intro"></p>
+        </div>
+
+        <!-- AI character customization: only shown for 你也一定遇到过 -->
+        <div id="briefing-ai-setup" class="hidden">
+          <p class="briefing-section-label" style="margin-top:16px">给 TA 取个名字（可选）</p>
+          <div class="briefing-field">
+            <label class="briefing-label">TA 的名字</label>
+            <input id="briefing-ai-name-input" type="text" class="briefing-input" placeholder="默认名字" maxlength="10">
+          </div>
+          <div class="briefing-field">
+            <label class="briefing-label">TA 的性格（会影响游戏体验）</label>
+            <textarea id="briefing-ai-persona" class="briefing-input briefing-textarea" placeholder="不填则使用默认设定" maxlength="100" rows="2"></textarea>
+          </div>
+        </div>
+
+        <div class="briefing-actions">
+          <button id="briefing-back-btn" class="btn-neutral" style="flex:1">← 返回</button>
+          <button id="briefing-start-btn" class="briefing-primary-btn" style="flex:2">开始入戏</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -169,6 +227,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=3"></script>
+  <script src="/app.js?v=7"></script>
 </body>
 </html>

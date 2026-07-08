@@ -6,6 +6,17 @@ const PROVIDER_DEFAULTS = {
   custom: { api_base: '', model: '' },
 };
 
+const TAG_COLORS = {
+  '影视同人':     { bg: '#EDE9FE', text: '#5B21B6' },
+  '你也一定遇到过': { bg: '#FCE7F3', text: '#9D174D' },
+  '恋爱':        { bg: '#FEE2E2', text: '#991B1B' },
+  '职场':        { bg: '#DBEAFE', text: '#1E40AF' },
+  '家庭':        { bg: '#D1FAE5', text: '#065F46' },
+  '友情':        { bg: '#FEF3C7', text: '#92400E' },
+  '社交':        { bg: '#E0F2FE', text: '#0C4A6E' },
+  _default:     { bg: '#F3F4F6', text: '#4B5563' },
+};
+
 const state = {
   sessionId: null,
   script: null,
@@ -20,6 +31,7 @@ const state = {
   activeTab: 'scripts',
   statsConfig: {},
   currentScriptId: null,
+  allScripts: [],
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -241,7 +253,7 @@ function appendTypingBubble(character) {
   return { wrapper, text, nameEl };
 }
 
-function promoteTypingBubbleToStream(bubbleRef, character) {
+function promoteTypingBubbleToStream(bubbleRef) {
   const { wrapper, text, nameEl } = bubbleRef;
   delete wrapper.dataset.typing;
   text.textContent = '';
@@ -314,31 +326,205 @@ function parseSSEChunk(buffer) {
   return { events, rest };
 }
 
-async function loadScripts() {
-  const res = await fetch('/api/scripts');
-  const data = await res.json();
+const CATEGORY_META = [
+  {
+    origin_tag: '影视同人',
+    display: '影视热梗',
+    subtitle: '这一世由你夺回一切',
+  },
+  {
+    origin_tag: '你也一定遇到过',
+    display: '你也一定遇到过',
+    subtitle: '如何炼就一张好嘴',
+  },
+];
+
+function tagBadgeEl(tag) {
+  const c = TAG_COLORS[tag] || TAG_COLORS._default;
+  const span = document.createElement('span');
+  span.textContent = tag;
+  span.style.cssText = `background:${c.bg};color:${c.text};display:inline-block;font-size:10px;font-weight:500;padding:2px 8px;border-radius:999px;`;
+  return span;
+}
+
+function buildScriptCard(script) {
+  const card = document.createElement('button');
+  card.className = 'w-full text-left bg-white rounded-2xl p-4 border border-warm-100 hover:border-warm-300 transition group';
+  card.style.cssText = 'border-width:0.5px;';
+
+  const tags = document.createElement('div');
+  tags.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;';
+  if (script.origin_tag) tags.appendChild(tagBadgeEl(script.origin_tag));
+  for (const t of (script.theme_tags || [])) tags.appendChild(tagBadgeEl(t));
+  card.appendChild(tags);
+
+  const title = document.createElement('h3');
+  title.style.cssText = 'font-size:15px;font-weight:500;color:#1c1917;margin-bottom:5px;letter-spacing:0.01em;';
+  title.textContent = script.title;
+  card.appendChild(title);
+
+  if (script.teaser) {
+    const teaser = document.createElement('p');
+    teaser.style.cssText = 'font-size:12.5px;color:#78716c;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:10px;';
+    teaser.textContent = script.teaser;
+    card.appendChild(teaser);
+  }
+
+  const bottom = document.createElement('div');
+  bottom.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+  bottom.innerHTML = `
+    <span style="font-size:11px;color:#a8a29e;">${script.player_role_hint || ''}</span>
+    <span style="font-size:11px;color:#a8a29e;">${script.estimated_turns_hint || ''}</span>
+  `;
+  card.appendChild(bottom);
+
+  card.addEventListener('click', () => showScriptModal(script.id));
+  return card;
+}
+
+function renderScriptList() {
   const list = $('#script-list');
   list.innerHTML = '';
 
-  if (!data.scripts.length) {
-    list.innerHTML = '<p class="text-center text-stone-400">暂无可用剧本</p>';
+  if (!state.allScripts.length) {
+    list.innerHTML = '<p class="text-center text-stone-400 py-8 text-sm">暂无可用剧本</p>';
     return;
   }
 
-  for (const script of data.scripts) {
-    const card = document.createElement('button');
-    card.className = 'w-full text-left bg-white/80 hover:bg-white rounded-2xl p-5 shadow-sm border border-warm-100 hover:border-warm-300 hover:shadow-md transition group';
-    card.innerHTML = `
-      <h3 class="text-lg font-semibold text-warm-600 group-hover:text-warm-700">${script.title}</h3>
-      <p class="mt-2 text-sm text-stone-500 line-clamp-2">${script.objective}</p>
-      <span class="inline-block mt-3 text-xs text-warm-500 font-medium">点击开始 →</span>
+  // Group scripts by origin_tag, preserving CATEGORY_META order
+  const grouped = new Map();
+  for (const meta of CATEGORY_META) grouped.set(meta.origin_tag, []);
+  for (const s of state.allScripts) {
+    if (!grouped.has(s.origin_tag)) grouped.set(s.origin_tag, []);
+    grouped.get(s.origin_tag).push(s);
+  }
+
+  for (const [originTag, scripts] of grouped) {
+    if (!scripts.length) continue;
+    const meta = CATEGORY_META.find(m => m.origin_tag === originTag);
+    const displayName = meta ? meta.display : originTag;
+    const subtitle = meta ? meta.subtitle : '';
+    const catId = 'cat-' + originTag.replace(/\s/g, '_');
+
+    const section = document.createElement('div');
+    section.className = 'script-category';
+    section.id = catId;
+
+    section.innerHTML = `
+      <div class="script-category-header" onclick="document.getElementById('${catId}').classList.toggle('collapsed')">
+        <div>
+          <div class="script-category-name">${displayName}</div>
+          ${subtitle ? `<div class="script-category-subtitle">${subtitle}</div>` : ''}
+        </div>
+        <div class="script-category-meta">
+          <span class="script-category-count">${scripts.length} 个剧本</span>
+          <svg class="script-category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+      </div>
+      <div class="script-category-cards">
+        <div class="script-category-inner"></div>
+      </div>
     `;
-    card.addEventListener('click', () => startGame(script.id));
-    list.appendChild(card);
+
+    const inner = section.querySelector('.script-category-inner');
+    for (const script of scripts) inner.appendChild(buildScriptCard(script));
+
+    list.appendChild(section);
   }
 }
 
-async function startGame(scriptId) {
+// ── Briefing Modal ──────────────────────────────────────────────
+
+let _briefingScriptId = null;
+
+function showBriefingStep(n) {
+  $('#briefing-step-1').classList.toggle('hidden', n !== 1);
+  $('#briefing-step-2').classList.toggle('hidden', n !== 2);
+  document.querySelectorAll('.briefing-step').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.step) === n);
+  });
+}
+
+async function showScriptModal(scriptId) {
+  if (!state.llmConfigured) {
+    switchTab('settings');
+    updateConfigUI();
+    return;
+  }
+
+  _briefingScriptId = scriptId;
+
+  let detail;
+  try {
+    const res = await fetch(`/api/scripts/${scriptId}/detail`);
+    if (!res.ok) throw new Error('Failed to load script detail');
+    detail = await res.json();
+  } catch (err) {
+    console.error(err);
+    alert('加载剧本信息失败，请重试');
+    return;
+  }
+
+  // Step 1: briefing
+  $('#briefing-script-title').textContent = detail.title;
+  $('#briefing-text').textContent = detail.briefing;
+  $('#briefing-objective').textContent = detail.objective;
+
+  // Step 2: character intro
+  $('#briefing-ai-name').textContent = detail.ai_character.name;
+  $('#briefing-ai-intro').textContent = detail.ai_character.intro;
+
+  // AI character customization: only for 你也一定遇到过
+  const isOriginal = detail.origin_tag === '你也一定遇到过';
+  $('#briefing-ai-setup').classList.toggle('hidden', !isOriginal);
+  if (isOriginal) {
+    $('#briefing-ai-name-input').value = '';
+    $('#briefing-ai-name-input').placeholder = `默认：${detail.ai_character.name}`;
+    $('#briefing-ai-persona').value = '';
+    $('#briefing-ai-persona').placeholder = '不填则使用默认设定';
+  }
+
+  showBriefingStep(1);
+  $('#briefing-overlay').classList.remove('hidden');
+}
+
+function hideBriefingModal() {
+  $('#briefing-overlay').classList.add('hidden');
+  _briefingScriptId = null;
+}
+
+async function confirmStartGame() {
+  const scriptId = _briefingScriptId;
+  if (!scriptId) return;
+
+  const isOriginal = !$('#briefing-ai-setup').classList.contains('hidden');
+  let aiName = null;
+  let aiPersona = null;
+
+  if (isOriginal) {
+    const nameVal = $('#briefing-ai-name-input').value.trim();
+    const personaVal = $('#briefing-ai-persona').value.trim();
+    if (nameVal) aiName = nameVal;
+    if (personaVal) aiPersona = personaVal;
+  }
+
+  hideBriefingModal();
+  await startGame(scriptId, aiName, aiPersona);
+}
+
+$('#briefing-cancel-btn').addEventListener('click', hideBriefingModal);
+$('#briefing-next-btn').addEventListener('click', () => showBriefingStep(2));
+$('#briefing-back-btn').addEventListener('click', () => showBriefingStep(1));
+$('#briefing-start-btn').addEventListener('click', confirmStartGame);
+$('#briefing-overlay').addEventListener('click', (e) => {
+  if (e.target === $('#briefing-overlay')) hideBriefingModal();
+});
+
+// ── Scripts ─────────────────────────────────────────────────────
+
+async function startGame(scriptId, aiName = null, aiPersona = null) {
   if (!state.llmConfigured) {
     switchTab('settings');
     updateConfigUI();
@@ -349,6 +535,8 @@ async function startGame(scriptId) {
   const llmConfig = getEffectiveLLMConfig();
   const payload = { script_id: scriptId };
   if (llmConfig) payload.llm_config = llmConfig;
+  if (aiName) payload.ai_name = aiName;
+  if (aiPersona) payload.ai_persona = aiPersona;
 
   try {
     const res = await fetch('/api/session/start', {
@@ -428,13 +616,13 @@ async function sendMessage(message) {
       for (const event of events) {
         if (event.type === 'emotion_tag') {
           if (!gotToken) {
-            streamBubble = promoteTypingBubbleToStream(typingBubble, state.aiName);
+            streamBubble = promoteTypingBubbleToStream(typingBubble);
             gotToken = true;
           }
           renderEmotionTag(streamBubble.nameEl, event.emotion_tag);
         } else if (event.type === 'token') {
           if (!gotToken) {
-            streamBubble = promoteTypingBubbleToStream(typingBubble, state.aiName);
+            streamBubble = promoteTypingBubbleToStream(typingBubble);
             gotToken = true;
           }
           streamBubble.text.textContent += event.content;
@@ -486,6 +674,12 @@ $('#message-form').addEventListener('submit', (e) => {
 
 $('#help-btn').addEventListener('click', () => {
   alert('提示功能即将上线，敬请期待。');
+});
+
+$('#exit-game-btn').addEventListener('click', () => {
+  state.sessionId = null;
+  state.gameOver = false;
+  showScreen('select');
 });
 
 $('#replay-btn').addEventListener('click', () => {
@@ -543,4 +737,7 @@ $('#cfg-test-btn').addEventListener('click', async () => {
 
 fillLLMForm(loadStoredLLMConfig() || { provider: 'doubao', ...PROVIDER_DEFAULTS.doubao, api_key: '' });
 switchTab('scripts');
-refreshLLMStatus().then(loadScripts);
+Promise.all([refreshLLMStatus(), fetch('/api/scripts').then(r => r.json())]).then(([, data]) => {
+  state.allScripts = (data && data.scripts) || [];
+  renderScriptList();
+});

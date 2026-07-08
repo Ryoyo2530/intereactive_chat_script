@@ -12,25 +12,46 @@ from game import session as session_store
 logger = logging.getLogger(__name__)
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+_scripts_cache: list[dict[str, Any]] | None = None
 
 
-def list_scripts() -> list[dict[str, str]]:
+def _load_scripts_from_disk() -> list[dict[str, Any]]:
     scripts = []
-    for path in sorted(SCRIPTS_DIR.glob("*.json")):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        scripts.append({
-            "id": data["id"],
-            "title": data["title"],
-            "objective": data.get("objective", ""),
-        })
+    for path in sorted(SCRIPTS_DIR.rglob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not data.get("id"):
+                continue
+            scripts.append({
+                "id": data["id"],
+                "title": data["title"],
+                "origin_tag": data.get("origin_tag", ""),
+                "theme_tags": data.get("theme_tags", []),
+                "teaser": data.get("teaser", data.get("objective", "")),
+                "player_role_hint": data.get("player_role_hint", ""),
+                "estimated_turns_hint": data.get("estimated_turns_hint", ""),
+            })
+        except Exception:
+            continue
     return scripts
 
 
+def list_scripts() -> list[dict[str, Any]]:
+    global _scripts_cache
+    if _scripts_cache is None:
+        _scripts_cache = _load_scripts_from_disk()
+    return _scripts_cache
+
+
 def load_script(script_id: str) -> dict[str, Any]:
-    path = SCRIPTS_DIR / f"{script_id}.json"
-    if not path.exists():
-        raise FileNotFoundError(f"Script not found: {script_id}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    for path in SCRIPTS_DIR.rglob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("id") == script_id:
+                return data
+        except Exception:
+            continue
+    raise FileNotFoundError(f"Script not found: {script_id}")
 
 
 def _clamp_stats(stats: dict[str, int], script: dict[str, Any]) -> dict[str, int]:
@@ -163,11 +184,11 @@ def _merge_director_stat_changes(
         if pid is not None
     ]
 
-    already_kp = set(game_session.get("hit_key_point_ids", []))
-    already_pf = set(game_session.get("hit_pitfall_ids", []))
+    already_kp = set(str(i) for i in game_session.get("hit_key_point_ids", []))
+    already_pf = set(str(i) for i in game_session.get("hit_pitfall_ids", []))
 
-    kp_by_id = {item["id"]: item for item in script.get("key_points", []) if "id" in item}
-    pf_by_id = {item["id"]: item for item in script.get("pitfalls", []) if "id" in item}
+    kp_by_id = {str(item["id"]): item for item in script.get("key_points", []) if "id" in item}
+    pf_by_id = {str(item["id"]): item for item in script.get("pitfalls", []) if "id" in item}
 
     validated_kp = [i for i in hit_kp_ids if i in kp_by_id and i not in already_kp]
     validated_pf = [i for i in hit_pf_ids if i in pf_by_id and i not in already_pf]
@@ -288,9 +309,21 @@ def _build_response(
     }
 
 
-def start_game(script_id: str, llm_override: dict[str, Any] | None = None) -> dict[str, Any]:
+def start_game(
+    script_id: str,
+    llm_override: dict[str, Any] | None = None,
+    ai_name: str | None = None,
+    ai_persona: str | None = None,
+) -> dict[str, Any]:
+    import copy
     cfg = llm_config.resolve_config(llm_override)
-    script = load_script(script_id)
+    script = copy.deepcopy(load_script(script_id))
+
+    if ai_name and ai_name.strip():
+        script["ai_character"]["name"] = ai_name.strip()
+    if ai_persona and ai_persona.strip():
+        script["ai_character"]["persona"] = ai_persona.strip()
+
     session_id = session_store.create_session(script, llm_config=cfg.as_dict())
     game_session = session_store.get_session(session_id)
     opening = script.get("opening_line", "……")
