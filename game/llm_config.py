@@ -33,6 +33,14 @@ class LLMConfig:
             "model": self.model,
         }
 
+    def public_dict(self) -> dict[str, str]:
+        """Safe for debug export — omits api_key."""
+        return {
+            "provider": self.provider,
+            "api_base": self.api_base,
+            "model": self.model,
+        }
+
 
 def _env_config() -> LLMConfig | None:
     api_key = os.getenv("LLM_API_KEY", "").strip()
@@ -70,6 +78,35 @@ def resolve_config(override: dict[str, Any] | None) -> LLMConfig:
         raise ValueError("请完整填写 API Base、API Key 和 Model")
 
     return LLMConfig(provider=provider, api_base=api_base, api_key=api_key, model=model)
+
+
+def resolve_dev_agent_configs(
+    override: dict[str, Any] | None,
+) -> tuple[LLMConfig, LLMConfig]:
+    """Resolve director and roleplay configs; falls back to shared model if not split."""
+    if not override:
+        cfg = resolve_config(None)
+        return cfg, cfg
+
+    if override.get("director") or override.get("roleplay"):
+        director_raw = override.get("director") or override
+        roleplay_raw = override.get("roleplay") or override
+        return resolve_config(director_raw), resolve_config(roleplay_raw)
+
+    shared = {
+        "provider": override.get("provider"),
+        "api_base": override.get("api_base"),
+        "api_key": override.get("api_key"),
+    }
+    director_model = (override.get("director_model") or override.get("model") or "").strip()
+    roleplay_model = (override.get("roleplay_model") or override.get("model") or "").strip()
+
+    director_cfg = resolve_config({**shared, "model": director_model})
+    if roleplay_model and roleplay_model != director_model:
+        roleplay_cfg = resolve_config({**shared, "model": roleplay_model})
+    else:
+        roleplay_cfg = director_cfg
+    return director_cfg, roleplay_cfg
 
 
 def get_status(override: dict[str, Any] | None = None) -> dict[str, Any]:

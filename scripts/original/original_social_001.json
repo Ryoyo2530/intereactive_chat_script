@@ -7,7 +7,7 @@
     "恋爱"
   ],
   "teaser": "朋友疯狂吐槽恋人，如何拿捏分寸不做小丑？",
-  "player_role_hint": "扮演挚友 · 情绪崩溃的恋爱脑好友",
+  "player_role_hint": "扮演 你自己 · 对手 情绪崩溃的恋爱脑好友",
   "estimated_turns_hint": "约 8-12 轮",
   "background": "你的恋爱脑好友和恋人发生争吵，此刻正向你疯狂吐槽另一半的种种问题，情绪极度委屈崩溃。好友当下需要情绪宣泄，极度护短，既反感旁人帮对方说话，也讨厌被盲目怂恿吵架，分寸极难把控。",
   "ai_character": {
@@ -36,6 +36,12 @@
     },
     "隔阂值": {
       "initial": 55,
+      "min": 0,
+      "max": 100,
+      "direction": "lower_is_better"
+    },
+    "清醒值": {
+      "initial": 5,
       "min": 0,
       "max": 100,
       "direction": "lower_is_better"

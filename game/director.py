@@ -41,9 +41,11 @@ def _normalize_reaction(raw: Any) -> dict[str, str]:
 
 def _build_messages(game_session: dict[str, Any], player_message: str) -> list[dict[str, str]]:
     script = game_session["script"]
-    system = prompt_manager.render("director/system.txt")
+    overrides = game_session.get("prompt_overrides")
+    system = prompt_manager.render("director/system.txt", overrides=overrides)
     user = prompt_manager.render(
         "director/user.txt",
+        overrides=overrides,
         background=script["background"],
         objective=script["objective"],
         ai_character_name=script["ai_character"]["name"],
@@ -103,11 +105,26 @@ def _normalize_result(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def judge(game_session: dict[str, Any], player_message: str, config: LLMConfig) -> dict[str, Any]:
+    result, _meta = judge_debug(game_session, player_message, config)
+    return result
+
+
+def judge_debug(
+    game_session: dict[str, Any],
+    player_message: str,
+    config: LLMConfig,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     messages = _build_messages(game_session, player_message)
     try:
-        result = llm_client.chat_json(messages, config, DIRECTOR_FALLBACK)
+        result, meta = llm_client.chat_json_stream_debug(messages, config, DIRECTOR_FALLBACK)
     except Exception as exc:
         logger.warning("[director] LLM call failed: %s", exc)
-        return dict(DIRECTOR_FALLBACK)
+        return dict(DIRECTOR_FALLBACK), {
+            "prompts": llm_client._prompts_from_messages(messages),
+            "ttft_ms": 0,
+            "total_ms": 0,
+            "usage": {"input_tokens": None, "output_tokens": None},
+            "raw_output": "",
+        }
 
-    return _normalize_result(result)
+    return _normalize_result(result), meta

@@ -51,6 +51,20 @@ def _session_llm_config(game_session: dict[str, Any]) -> llm_config.LLMConfig:
     return llm_config.resolve_config(None)
 
 
+def _session_director_config(game_session: dict[str, Any]) -> llm_config.LLMConfig:
+    stored = game_session.get("llm_config_director") or game_session.get("llm_config")
+    if stored:
+        return llm_config.resolve_config(stored)
+    return llm_config.resolve_config(None)
+
+
+def _session_roleplay_config(game_session: dict[str, Any]) -> llm_config.LLMConfig:
+    stored = game_session.get("llm_config_roleplay") or game_session.get("llm_config")
+    if stored:
+        return llm_config.resolve_config(stored)
+    return llm_config.resolve_config(None)
+
+
 def _prepare_turn(game_session: dict[str, Any], message: str) -> str:
     script = game_session["script"]
     game_session["history"].append({
@@ -258,19 +272,32 @@ def _build_response(
 def start_game(
     script_id: str,
     llm_override: dict[str, Any] | None = None,
+    script_override: dict[str, Any] | None = None,
+    prompt_overrides: dict[str, str] | None = None,
     ai_name: str | None = None,
     ai_persona: str | None = None,
 ) -> dict[str, Any]:
     import copy
-    cfg = llm_config.resolve_config(llm_override)
-    script = copy.deepcopy(load_script(script_id))
+    director_cfg, roleplay_cfg = llm_config.resolve_dev_agent_configs(llm_override)
+    if script_override:
+        script = copy.deepcopy(script_override)
+        if not script.get("id"):
+            script["id"] = script_id
+    else:
+        script = copy.deepcopy(load_script(script_id))
 
     if ai_name and ai_name.strip():
         script["ai_character"]["name"] = ai_name.strip()
     if ai_persona and ai_persona.strip():
         script["ai_character"]["persona"] = ai_persona.strip()
 
-    session_id = session_store.create_session(script, llm_config=cfg.as_dict())
+    session_id = session_store.create_session(
+        script,
+        llm_config=director_cfg.as_dict(),
+        llm_config_director=director_cfg.as_dict(),
+        llm_config_roleplay=roleplay_cfg.as_dict(),
+        prompt_overrides=prompt_overrides,
+    )
     game_session = session_store.get_session(session_id)
     opening = script.get("opening_line", "……")
     game_session["history"].append({
@@ -293,6 +320,10 @@ def start_game(
         "opening_line": opening,
         "stats": game_session["stats"],
         "turn": game_session["turn"],
+        "llm_config": {
+            "director": director_cfg.public_dict(),
+            "roleplay": roleplay_cfg.public_dict(),
+        },
     }
 
 
@@ -304,9 +335,10 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
         raise ValueError("Game is already over")
 
     player_message = _prepare_turn(game_session, message)
-    cfg = _session_llm_config(game_session)
+    director_cfg = _session_director_config(game_session)
+    roleplay_cfg = _session_roleplay_config(game_session)
 
-    director_result = director.judge(game_session, player_message, cfg)
+    director_result = director.judge(game_session, player_message, director_cfg)
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
@@ -320,15 +352,33 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
         game_session,
         player_message,
         reaction,
-        cfg,
+        roleplay_cfg,
     )
     reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
     emotion_tag = roleplay_result.get("emotion_tag", "")
     return _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
 
 
+def _agent_debug_payload(
+    result: dict[str, Any] | None,
+    meta: dict[str, Any],
+    cfg: llm_config.LLMConfig,
+) -> dict[str, Any]:
+    return {
+        "output": result,
+        "prompts": meta.get("prompts") or {},
+        "ttft_ms": meta.get("ttft_ms"),
+        "total_ms": meta.get("total_ms"),
+        "usage": meta.get("usage") or {},
+        "raw_output": meta.get("raw_output", ""),
+        "model": cfg.model,
+        "provider": cfg.provider,
+        "api_base": cfg.api_base,
+    }
+
+
 def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
-    """Same as process_message but includes raw director + roleplay output in _debug."""
+    """Same as process_message but includes prompts, timing, tokens in _debug."""
     game_session = session_store.get_session(session_id)
     if not game_session:
         raise ValueError("Session not found")
@@ -336,9 +386,10 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
         raise ValueError("Game is already over")
 
     player_message = _prepare_turn(game_session, message)
-    cfg = _session_llm_config(game_session)
+    director_cfg = _session_director_config(game_session)
+    roleplay_cfg = _session_roleplay_config(game_session)
 
-    director_result = director.judge(game_session, player_message, cfg)
+    director_result, director_meta = director.judge_debug(game_session, player_message, director_cfg)
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
@@ -346,15 +397,31 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
     if game_over:
         reply = ending_text or "游戏结束。"
         response = _build_response(game_session, reply, stat_changes, True, outcome, ending_text)
-        response["_debug"] = {"director": director_result, "roleplay": None}
+        response["_debug"] = {
+            "director": _agent_debug_payload(director_result, director_meta, director_cfg),
+            "roleplay": None,
+            "llm_config": {
+                "director": director_cfg.public_dict(),
+                "roleplay": roleplay_cfg.public_dict(),
+            },
+        }
         return response
 
     reaction = director_result.get("reaction") or {}
-    roleplay_result = roleplay.respond(game_session, player_message, reaction, cfg)
+    roleplay_result, roleplay_meta = roleplay.respond_debug(
+        game_session, player_message, reaction, roleplay_cfg
+    )
     reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
     emotion_tag = roleplay_result.get("emotion_tag", "")
     response = _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
-    response["_debug"] = {"director": director_result, "roleplay": roleplay_result}
+    response["_debug"] = {
+        "director": _agent_debug_payload(director_result, director_meta, director_cfg),
+        "roleplay": _agent_debug_payload(roleplay_result, roleplay_meta, roleplay_cfg),
+        "llm_config": {
+            "director": director_cfg.public_dict(),
+            "roleplay": roleplay_cfg.public_dict(),
+        },
+    }
     return response
 
 
@@ -366,9 +433,10 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
         raise ValueError("Game is already over")
 
     player_message = _prepare_turn(game_session, message)
-    cfg = _session_llm_config(game_session)
+    director_cfg = _session_director_config(game_session)
+    roleplay_cfg = _session_roleplay_config(game_session)
 
-    director_result = director.judge(game_session, player_message, cfg)
+    director_result = director.judge(game_session, player_message, director_cfg)
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
@@ -385,7 +453,7 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     gotToken = False
     reaction = director_result.get("reaction") or {}
 
-    for chunk in roleplay.respond_stream(game_session, player_message, reaction, cfg):
+    for chunk in roleplay.respond_stream(game_session, player_message, reaction, roleplay_cfg):
         accumulated += chunk
 
         if not streamed_emotion_tag:

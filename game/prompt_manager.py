@@ -3,15 +3,17 @@ from pathlib import Path
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
-def load_template(template_name: str) -> str:
+def load_template(template_name: str, overrides: dict[str, str] | None = None) -> str:
+    if overrides and template_name in overrides:
+        return overrides[template_name]
     path = PROMPTS_DIR / template_name
     if not path.exists():
         raise FileNotFoundError(f"Prompt template not found: {template_name}")
     return path.read_text(encoding="utf-8")
 
 
-def render(template_name: str, **kwargs: str) -> str:
-    text = load_template(template_name)
+def render(template_name: str, overrides: dict[str, str] | None = None, **kwargs: str) -> str:
+    text = load_template(template_name, overrides=overrides)
     for key, value in kwargs.items():
         text = text.replace(f"{{{{{key}}}}}", str(value))
     return text

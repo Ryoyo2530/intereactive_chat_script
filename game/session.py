@@ -4,7 +4,13 @@ from typing import Any
 _sessions: dict[str, dict[str, Any]] = {}
 
 
-def create_session(script: dict[str, Any], llm_config: dict[str, str] | None = None) -> str:
+def create_session(
+    script: dict[str, Any],
+    llm_config: dict[str, str] | None = None,
+    llm_config_director: dict[str, str] | None = None,
+    llm_config_roleplay: dict[str, str] | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+) -> str:
     session_id = str(uuid.uuid4())
     stats = {
         name: cfg["initial"]
@@ -20,6 +26,9 @@ def create_session(script: dict[str, Any], llm_config: dict[str, str] | None = N
         "ending_text": None,
         "result": None,
         "llm_config": llm_config,
+        "llm_config_director": llm_config_director or llm_config,
+        "llm_config_roleplay": llm_config_roleplay or llm_config,
+        "prompt_overrides": prompt_overrides,
         "hit_key_point_ids": [],
         "hit_pitfall_ids": [],
     }

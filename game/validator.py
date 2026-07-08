@@ -49,20 +49,23 @@ def validate(script: dict[str, Any]) -> dict[str, list[str]]:
                     f"stats.{stat_name}.initial={initial} 超出范围 [{lo}, {hi}]"
                 )
 
-    # key_points and pitfalls: unique IDs, hit_stat_changes refs valid stats
+    # key_points and pitfalls: unique IDs within each section, hit_stat_changes refs valid stats
     stat_names = set(stats_cfg.keys()) if isinstance(stats_cfg, dict) else set()
-    all_ids: list[Any] = []
 
     for section, label in [("key_points", "key_points"), ("pitfalls", "pitfalls")]:
         items = script.get(section) or []
         if not isinstance(items, list):
             continue
+        seen_in_section: set[str] = set()
         for item in items:
             if not isinstance(item, dict):
                 continue
             item_id = item.get("id")
             if item_id is not None:
-                all_ids.append(str(item_id))
+                sid = str(item_id)
+                if sid in seen_in_section:
+                    errors.append(f"{label} 存在重复 id：{sid}")
+                seen_in_section.add(sid)
             changes = item.get("hit_stat_changes") or {}
             if isinstance(changes, dict):
                 for ref_stat in changes:
@@ -71,21 +74,16 @@ def validate(script: dict[str, Any]) -> dict[str, list[str]]:
                             f"{label}[id={item_id}].hit_stat_changes 引用了不存在的数值：{ref_stat}"
                         )
 
-    # Duplicate IDs across key_points + pitfalls
-    seen: set[str] = set()
-    for sid in all_ids:
-        if sid in seen:
-            errors.append(f"key_points/pitfalls 存在重复 id：{sid}")
-        seen.add(sid)
-
     # win/lose conditions parseable
     for field in ("win_condition", "lose_condition"):
         cond = script.get(field, "")
         if cond and not condition_parser.is_parseable(str(cond)):
             errors.append(f"{field} 无法解析，请检查格式（示例：好感度 >= 70 且 愤怒值 <= 20）")
 
-    # emotion_vocabulary non-empty list
+    # emotion_vocabulary non-empty list (top-level or ai_character)
     vocab = script.get("emotion_vocabulary")
+    if vocab is None:
+        vocab = (script.get("ai_character") or {}).get("emotion_vocabulary")
     if vocab is None:
         warnings.append("缺少 emotion_vocabulary，情绪标签功能将无法正常工作")
     elif not isinstance(vocab, list) or len(vocab) == 0:

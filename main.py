@@ -15,10 +15,13 @@ from game import engine
 from game import llm_client
 from game import llm_config
 from game import dev_auth
+from game import dev_drafts
+from game import path_calculator
+from game import prompt_preview
 from game import script_repository
 from game import validator as script_validator
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(title="入戏")
@@ -165,6 +168,25 @@ class DevLoginRequest(BaseModel):
     password: str
 
 
+class DevSimulateStartRequest(BaseModel):
+    llm_config: dict[str, Any] | None = None
+    script: dict[str, Any] | None = None
+    prompt_overrides: dict[str, str] | None = None
+    prefer_saved_drafts: bool = True
+
+
+class DevPromptPreviewRequest(BaseModel):
+    script: dict[str, Any] | None = None
+    script_id: str | None = None
+    prompts: dict[str, str] | None = None
+    prefer_saved_drafts: bool = False
+    player_message: str = "（示例玩家发言，用于预览 Prompt 渲染效果）"
+
+
+class DevPromptDraftRequest(BaseModel):
+    prompts: dict[str, str]
+
+
 class DevSimulateMessageRequest(BaseModel):
     session_id: str
     message: str
@@ -212,6 +234,7 @@ def dev_create_script(body: dict):
     if result["errors"]:
         raise HTTPException(status_code=422, detail={"errors": result["errors"], "warnings": result["warnings"]})
     script_repository.save(body)
+    dev_drafts.delete_script_draft(script_id)
     return {"ok": True, "id": script_id, "warnings": result["warnings"]}
 
 
@@ -228,6 +251,7 @@ def dev_save_script(script_id: str, body: dict):
     if result["errors"]:
         raise HTTPException(status_code=422, detail={"errors": result["errors"], "warnings": result["warnings"]})
     script_repository.save(body)
+    dev_drafts.delete_script_draft(script_id)
     return {"ok": True, "warnings": result["warnings"]}
 
 
@@ -237,15 +261,28 @@ def dev_delete_script(script_id: str):
         script_repository.delete(script_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")
+    dev_drafts.delete_script_draft(script_id)
     return {"ok": True}
 
 
 @app.post("/api/dev/scripts/{script_id}/simulate/start", dependencies=[Depends(require_dev_auth)])
-def dev_simulate_start(script_id: str):
+def dev_simulate_start(script_id: str, body: DevSimulateStartRequest | None = None):
     try:
-        return engine.start_game(script_id)
+        req = body or DevSimulateStartRequest()
+        llm_override = req.llm_config
+        prefer = req.prefer_saved_drafts
+        script = dev_drafts.resolve_simulate_script(script_id, req.script, prefer)
+        prompt_overrides = dev_drafts.resolve_simulate_prompts(req.prompt_overrides, prefer)
+        return engine.start_game(
+            script_id,
+            llm_override=llm_override,
+            script_override=script,
+            prompt_overrides=prompt_overrides,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -321,6 +358,105 @@ async def dev_import_overwrite(file: UploadFile = File(...)):
         raise HTTPException(status_code=422, detail={"errors": result["errors"], "warnings": result["warnings"]})
     script_repository.save(data)
     return {"ok": True, "id": data["id"], "warnings": result["warnings"]}
+
+
+# ── Dev drafts: scripts ───────────────────────────────────────────────────────
+
+@app.get("/api/dev/drafts/scripts/{script_id}", dependencies=[Depends(require_dev_auth)])
+def dev_get_script_draft(script_id: str):
+    draft = dev_drafts.load_script_draft(script_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="No script draft")
+    return {"draft": draft, "has_draft": True}
+
+
+@app.put("/api/dev/drafts/scripts/{script_id}", dependencies=[Depends(require_dev_auth)])
+def dev_save_script_draft(script_id: str, body: dict):
+    if body.get("id") != script_id:
+        raise HTTPException(status_code=400, detail="Body id must match URL id")
+    dev_drafts.save_script_draft(body)
+    return {"ok": True, "has_draft": True}
+
+
+@app.delete("/api/dev/drafts/scripts/{script_id}", dependencies=[Depends(require_dev_auth)])
+def dev_delete_script_draft(script_id: str):
+    dev_drafts.delete_script_draft(script_id)
+    return {"ok": True}
+
+
+@app.get("/api/dev/drafts/scripts/{script_id}/compare", dependencies=[Depends(require_dev_auth)])
+def dev_compare_script_draft(script_id: str):
+    try:
+        production = script_repository.load_one(script_id)
+    except FileNotFoundError:
+        production = None
+    draft = dev_drafts.load_script_draft(script_id)
+    return {
+        "production": production,
+        "draft": draft,
+        "has_draft": draft is not None,
+        "has_production": production is not None,
+    }
+
+
+# ── Dev drafts: prompts ─────────────────────────────────────────────────────
+
+@app.get("/api/dev/prompts", dependencies=[Depends(require_dev_auth)])
+def dev_get_prompts():
+    production = dev_drafts.load_production_prompts()
+    drafts = dev_drafts.load_prompt_drafts()
+    return {
+        "production": production,
+        "draft": drafts,
+        "has_draft": dev_drafts.has_prompt_drafts(),
+        "keys": dev_drafts.PROMPT_TEMPLATE_KEYS,
+    }
+
+
+@app.put("/api/dev/prompts/draft", dependencies=[Depends(require_dev_auth)])
+def dev_save_prompt_draft(body: DevPromptDraftRequest):
+    dev_drafts.save_prompt_drafts(body.prompts)
+    return {"ok": True, "has_draft": True}
+
+
+@app.post("/api/dev/prompts/publish", dependencies=[Depends(require_dev_auth)])
+def dev_publish_prompts():
+    try:
+        dev_drafts.publish_prompt_drafts()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True}
+
+
+@app.delete("/api/dev/prompts/draft", dependencies=[Depends(require_dev_auth)])
+def dev_delete_prompt_draft():
+    dev_drafts.delete_prompt_drafts()
+    return {"ok": True}
+
+
+@app.post("/api/dev/prompts/preview", dependencies=[Depends(require_dev_auth)])
+def dev_preview_prompts(body: DevPromptPreviewRequest):
+    script = body.script
+    if not script and body.script_id:
+        try:
+            script = engine.load_script(body.script_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Script not found")
+        if body.prefer_saved_drafts:
+            saved = dev_drafts.load_script_draft(body.script_id)
+            if saved:
+                script = saved
+    if not script:
+        raise HTTPException(status_code=400, detail="请提供 script 或 script_id")
+
+    prompts = body.prompts
+    if body.prefer_saved_drafts and not prompts:
+        prompts = dev_drafts.load_effective_prompt_overrides()
+    elif prompts:
+        production = dev_drafts.load_production_prompts()
+        prompts = {key: prompts.get(key, production[key]) for key in dev_drafts.PROMPT_TEMPLATE_KEYS}
+
+    return prompt_preview.preview_prompts(script, prompts, body.player_message)
 
 
 @app.get("/")

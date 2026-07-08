@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -99,6 +100,69 @@ def chat_stream(
 
 def parse_json_response(text: str) -> dict[str, Any]:
     return _extract_json(text)
+
+
+def _prompts_from_messages(messages: list[dict[str, str]]) -> dict[str, str]:
+    return {
+        "system": next((m["content"] for m in messages if m["role"] == "system"), ""),
+        "user": next((m["content"] for m in messages if m["role"] == "user"), ""),
+    }
+
+
+def chat_json_stream_debug(
+    messages: list[dict[str, str]],
+    config: LLMConfig,
+    fallback: dict[str, Any],
+    temperature: float = 0.7,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Stream a JSON completion and capture TTFT, total time, and token usage."""
+    start = time.perf_counter()
+    ttft_ms: int | None = None
+    accumulated = ""
+    usage: dict[str, int | None] = {"input_tokens": None, "output_tokens": None}
+
+    extra = _extra_body(config)
+    kwargs: dict[str, Any] = {
+        "model": config.model,
+        "messages": messages,
+        "temperature": temperature,
+        "stream": True,
+        "stream_options": {"include_usage": True},
+    }
+    if extra:
+        kwargs["extra_body"] = extra
+
+    stream = _client_for(config).chat.completions.create(**kwargs)
+    for chunk in stream:
+        if getattr(chunk, "usage", None):
+            usage["input_tokens"] = chunk.usage.prompt_tokens
+            usage["output_tokens"] = chunk.usage.completion_tokens
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta.content
+        if delta:
+            if ttft_ms is None:
+                ttft_ms = int((time.perf_counter() - start) * 1000)
+            accumulated += delta
+
+    total_ms = int((time.perf_counter() - start) * 1000)
+    if ttft_ms is None:
+        ttft_ms = total_ms
+
+    try:
+        parsed = _extract_json(accumulated)
+    except Exception as exc:
+        logger.warning("LLM JSON parse failed (stream debug): %s", exc)
+        parsed = dict(fallback)
+
+    meta = {
+        "prompts": _prompts_from_messages(messages),
+        "ttft_ms": ttft_ms,
+        "total_ms": total_ms,
+        "usage": usage,
+        "raw_output": accumulated,
+    }
+    return parsed, meta
 
 
 def chat_json(

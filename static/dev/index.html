@@ -47,6 +47,20 @@
     .btn-new { background: var(--amber-text); color: var(--amber-bg); border: none; border-radius: 6px; padding: 3px 10px; font-size: 11px; font-weight: 500; cursor: pointer; }
     .btn-new:hover { opacity: 0.85; }
 
+    /* Workspace switch */
+    .workspace-nav { display: flex; gap: 0; background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0; }
+    .workspace-nav-btn { padding: 10px 18px; font-size: 13px; border: none; background: none; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .workspace-nav-btn:hover { color: var(--text-primary); }
+    .workspace-nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+    .workspace { display: none; flex: 1; overflow: hidden; min-height: 0; }
+    .workspace.active { display: flex; }
+    #workspace-scripts { flex-direction: row; }
+    #workspace-llm { flex-direction: column; width: 100%; }
+    .llm-workspace-header { padding: 12px 16px 10px; background: var(--surface-2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .llm-workspace-title { font-size: 14px; font-weight: 600; }
+    .llm-workspace-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+    .llm-workspace-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+
     /* Main layout */
     .main-area { flex: 1; display: flex; overflow: hidden; }
 
@@ -54,6 +68,12 @@
     .script-list-panel { width: 220px; min-width: 180px; background: var(--surface-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
     .panel-header { padding: 10px 12px 8px; font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
     .script-items { flex: 1; overflow-y: auto; }
+    .script-category { border-bottom: 1px solid var(--border); }
+    .script-category-header { padding: 10px 12px 6px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; background: var(--surface-3); position: sticky; top: 0; z-index: 1; }
+    .script-category-name { font-size: 11px; font-weight: 600; color: var(--text-primary); letter-spacing: 0.02em; }
+    .script-category-subtitle { font-size: 10px; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
+    .script-category-count { font-size: 10px; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; flex-shrink: 0; margin-top: 1px; }
+    .script-category-items { padding-bottom: 4px; }
     .script-item { padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: flex-start; gap: 8px; }
     .script-item:hover { background: var(--surface-1); }
     .script-item.active { background: #EEF0FC; border-left: 2px solid var(--accent); padding-left: 10px; }
@@ -61,7 +81,7 @@
     .status-dot.saved { background: #4ade80; }
     .status-dot.draft { background: #f59e0b; }
     .script-item-body { flex: 1; min-width: 0; }
-    .script-item-title { font-size: 13px; font-weight: 500; truncate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .script-item-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
     .script-item-id { font-size: 10px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .list-footer { padding: 8px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
     .list-footer-btn { flex: 1; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 5px 4px; font-size: 11px; color: var(--text-secondary); cursor: pointer; text-align: center; }
@@ -79,8 +99,41 @@
     .btn-action:hover { background: var(--surface-3); }
     .btn-action.accent { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 500; }
     .btn-action.accent:hover { opacity: 0.9; }
-    .btn-action.danger { color: #dc2626; }
-    .btn-action.danger:hover { background: #fee2e2; border-color: #fca5a5; }
+    .btn-action.draft { background: #eef0fc; color: var(--accent); border-color: rgba(127,119,221,0.35); font-weight: 500; }
+    .btn-action.draft:hover { background: #e4e7fa; }
+    .editor-toolbar { padding: 8px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .draft-status { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+    .draft-status.saved { color: #166534; }
+    .draft-status.unsaved { color: #92400e; }
+
+    /* Diff panel */
+    .diff-panel { border-bottom: 1px solid var(--border); background: #faf9f7; max-height: 220px; overflow: auto; padding: 10px 16px; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.55; flex-shrink: 0; }
+    .diff-line { padding: 1px 8px; white-space: pre-wrap; word-break: break-word; }
+    .diff-line.diff-add { background: #dcfce7; color: #14532d; }
+    .diff-line.diff-del { background: #fee2e2; color: #7f1d1d; }
+    .diff-line.diff-same { color: var(--text-muted); }
+    .diff-empty { font-size: 12px; color: var(--text-muted); padding: 8px 0; }
+
+    /* Prompt tab */
+    .prompt-topbar { padding: 8px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+    .prompt-topbar select, .prompt-topbar input { border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; font-size: 12px; background: var(--surface-1); }
+    .prompt-topbar-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+    .prompt-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+    .prompt-sidebar { width: 200px; border-right: 1px solid var(--border); background: var(--surface-2); overflow-y: auto; padding: 8px; flex-shrink: 0; }
+    .prompt-nav-item { width: 100%; text-align: left; border: none; background: none; border-radius: 8px; padding: 8px 10px; font-size: 12px; cursor: pointer; color: var(--text-secondary); margin-bottom: 4px; }
+    .prompt-nav-item:hover { background: var(--surface-1); }
+    .prompt-nav-item.active { background: #eef0fc; color: var(--accent); font-weight: 500; }
+    .prompt-nav-label { font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px; }
+    .prompt-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .prompt-editor-toolbar { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface-2); flex-shrink: 0; }
+    .prompt-editor-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+    textarea.prompt-textarea { flex: 1; border: none; outline: none; resize: none; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6; padding: 12px 14px; background: #f0efed; color: var(--text-primary); min-height: 120px; }
+    .prompt-preview-panel { width: 340px; min-width: 280px; border-left: 1px solid var(--border); background: var(--surface-2); display: flex; flex-direction: column; overflow: hidden; }
+    .prompt-preview-header { padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em; }
+    .prompt-preview-body { flex: 1; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .prompt-preview-block { background: var(--surface-1); border-radius: 8px; padding: 8px 10px; }
+    .prompt-preview-block h4 { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    .prompt-preview-block pre { font-family: ui-monospace, monospace; font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; color: var(--text-secondary); max-height: 200px; overflow: auto; }
 
     /* Tabs */
     .tabs { display: flex; padding: 0 16px; gap: 2px; background: var(--surface-2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -88,8 +141,12 @@
     .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
 
     /* Editor tab */
-    #tab-editor { flex: 1; display: none; flex-direction: column; overflow: hidden; }
-    #tab-editor.active { display: flex; }
+    .script-tab { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    .script-tab.active { display: flex; }
+    .llm-tab { flex: 1; display: none; flex-direction: column; overflow: hidden; min-height: 0; }
+    .llm-tab.active { display: flex; }
+    #tab-prompts { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    #tab-prompts.active { display: flex; }
     .validation-bar { padding: 8px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); display: none; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
     .validation-bar.visible { display: flex; }
     .val-ok { font-size: 12px; color: #166534; }
@@ -105,12 +162,13 @@
     .field-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
 
     /* Simulate tab */
-    #tab-simulate { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    #tab-simulate { flex: 1; display: none; flex-direction: column; overflow: hidden; min-height: 0; }
     #tab-simulate.active { display: flex; }
+    .sim-topbar select { border: 1px solid rgba(107,74,18,0.25); border-radius: 6px; padding: 3px 8px; font-size: 12px; background: rgba(255,255,255,0.5); color: var(--amber-text); }
     .sim-topbar { padding: 8px 16px; background: var(--amber-bg); color: var(--amber-text); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 10px; flex-shrink: 0; border-bottom: 1px solid rgba(107,74,18,0.12); }
     .sim-start-btn { background: var(--accent); color: var(--accent-text); border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
     .sim-start-btn:disabled { opacity: 0.4; cursor: default; }
-    .sim-reset-btn { background: none; border: 1px solid rgba(107,74,18,0.3); color: var(--amber-text); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; display: none; }
+    .sim-reset-btn { background: none; border: 1px solid rgba(107,74,18,0.3); color: var(--amber-text); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
     .sim-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 
     /* Bubbles — reuse player side style */
@@ -130,8 +188,73 @@
     .debug-agent { background: var(--surface-1); border-radius: 6px; padding: 8px 10px; }
     .debug-agent-title { font-size: 10.5px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px; }
     .debug-agent pre { font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap; }
+    .debug-meta { font-size: 10.5px; color: var(--text-muted); margin-top: 4px; }
+    .debug-prompt-toggle { font-size: 10.5px; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 0; margin-top: 6px; text-align: left; }
+    .debug-prompt-content { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+    .debug-prompt-content.hidden { display: none; }
+    .debug-prompt-block { background: #eae8e4; border-radius: 6px; padding: 8px 10px; }
+    .debug-prompt-label { font-size: 10px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+    .debug-prompt-block pre { font-family: ui-monospace, monospace; font-size: 10.5px; line-height: 1.5; color: var(--text-secondary); white-space: pre-wrap; max-height: 180px; overflow-y: auto; }
 
-    /* Stats bar */
+    /* Path calculator tab */
+    #tab-path { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    #tab-path.active { display: flex; }
+    .path-scroll { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .path-summary { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .path-summary-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+    .path-params { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--text-secondary); }
+    .path-outcome { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; }
+    .path-outcome.win { background: #dcfce7; color: #166534; }
+    .path-outcome.lose { background: #fee2e2; color: #991b1b; }
+    .path-outcome.ongoing { background: #fef3c7; color: #92400e; }
+    .path-stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 8px; }
+    .path-stat-card { background: var(--surface-1); border-radius: 8px; padding: 8px 10px; font-size: 11px; }
+    .path-stat-card strong { display: block; font-size: 16px; margin-top: 2px; color: var(--text-primary); }
+    .path-section { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .path-section-title { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+    .path-check-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .path-check-item:last-child { border-bottom: none; }
+    .path-check-item label { flex: 1; cursor: pointer; line-height: 1.45; color: var(--text-secondary); }
+    .path-check-item input { margin-top: 3px; accent-color: var(--accent); }
+    .path-check-meta { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+    .path-empty { font-size: 12px; color: var(--text-muted); padding: 8px 0; }
+    .sim-export-btn { margin-left: auto; background: none; border: 1px solid rgba(107,74,18,0.3); color: var(--amber-text); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    .sim-export-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* Dev LLM config bar */
+    .dev-llm-bar { background: var(--surface-2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .dev-llm-bar.in-llm-workspace { background: var(--surface-1); }
+    .dev-llm-toggle { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-secondary); text-align: left; }
+    .dev-llm-toggle:hover { background: var(--surface-1); }
+    .dev-llm-toggle strong { color: var(--text-primary); font-weight: 600; }
+    .dev-llm-summary { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+    .dev-llm-panel { padding: 0 16px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .dev-llm-panel.hidden { display: none; }
+    .dev-llm-field label { display: block; font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; }
+    .dev-llm-field input, .dev-llm-field select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; background: var(--surface-1); }
+    .dev-llm-field-wide { grid-column: 1 / -1; }
+    .dev-llm-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .dev-llm-same { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+    .dev-llm-test-btn { border: 1px solid var(--border); background: var(--surface-1); border-radius: 8px; padding: 5px 10px; font-size: 11px; cursor: pointer; color: var(--text-secondary); }
+
+    /* Simulate layout + stat timeline board */
+    .sim-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+    .sim-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .sim-stat-board { width: 300px; min-width: 260px; border-left: 1px solid var(--border); background: var(--surface-2); display: flex; flex-direction: column; overflow: hidden; }
+    .sim-stat-board-header { padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em; }
+    .sim-stat-board-body { flex: 1; overflow: auto; padding: 10px 12px; }
+    .timeline-empty { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+    .timeline-stat-block { margin-bottom: 14px; }
+    .timeline-stat-name { font-size: 11px; font-weight: 600; margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .timeline-track { position: relative; height: 28px; background: var(--surface-1); border-radius: 6px; overflow: hidden; margin-bottom: 4px; }
+    .timeline-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; opacity: 0.35; transition: width 0.3s ease; }
+    .timeline-point { position: absolute; top: 50%; width: 8px; height: 8px; border-radius: 50%; transform: translate(-50%, -50%); border: 1.5px solid white; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); z-index: 1; }
+    .timeline-steps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .timeline-step { font-size: 10px; padding: 2px 6px; border-radius: 999px; background: var(--surface-1); color: var(--text-secondary); border: 1px solid var(--border); }
+    .timeline-step.positive { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+    .timeline-step.negative { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .timeline-step.neutral { background: var(--surface-3); color: var(--text-muted); }
+    .timeline-turn-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--text-muted); margin-top: 2px; }
     .sim-footer { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
     .stats-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .stat-item { flex: 1; }
@@ -183,77 +306,198 @@
     </div>
   </div>
 
-  <div class="main-area">
-    <!-- Left: script list -->
-    <div class="script-list-panel">
-      <div class="panel-header">剧本列表</div>
-      <div class="script-items" id="script-items"></div>
-      <div class="list-footer">
-        <label class="list-footer-btn" style="cursor:pointer">↑ 上传<input id="import-file-2" type="file" accept=".json" style="display:none"></label>
-        <button id="export-all-btn-2" class="list-footer-btn">↓ 导出全部</button>
-      </div>
-    </div>
+  <div class="workspace-nav">
+    <button type="button" class="workspace-nav-btn active" data-workspace="scripts">剧本编辑</button>
+    <button type="button" class="workspace-nav-btn" data-workspace="llm">LLM 调试</button>
+  </div>
 
-    <!-- Right panel -->
-    <div class="right-panel">
-      <div class="right-topbar">
-        <span class="script-name-display" id="topbar-title">未选择剧本</span>
-        <span class="script-id-display" id="topbar-id"></span>
-        <div class="right-topbar-actions">
-          <button id="download-btn" class="btn-action">下载</button>
-          <button id="validate-btn" class="btn-action">验证</button>
-          <button id="save-btn" class="btn-action accent">保存并发布</button>
-          <button id="delete-btn" class="btn-action danger">删除</button>
+  <div class="main-area">
+    <!-- ── Script editing workspace ── -->
+    <div id="workspace-scripts" class="workspace active">
+      <div class="script-list-panel">
+        <div class="panel-header">剧本列表</div>
+        <div class="script-items" id="script-items"></div>
+        <div class="list-footer">
+          <label class="list-footer-btn" style="cursor:pointer">↑ 上传<input id="import-file-2" type="file" accept=".json" style="display:none"></label>
+          <button id="export-all-btn-2" class="list-footer-btn">↓ 导出全部</button>
         </div>
       </div>
 
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="editor">编辑器</button>
-        <button class="tab-btn" data-tab="simulate">试玩验证</button>
+      <div class="right-panel">
+        <div class="right-topbar">
+          <span class="script-name-display" id="topbar-title">未选择剧本</span>
+          <span class="script-id-display" id="topbar-id"></span>
+          <div class="right-topbar-actions">
+            <button id="download-btn" class="btn-action">下载</button>
+            <button id="script-draft-btn" class="btn-action draft">Save Draft</button>
+            <button id="save-btn" class="btn-action accent">保存并发布</button>
+            <button id="delete-btn" class="btn-action danger">删除</button>
+          </div>
+        </div>
+
+        <div class="tabs tabs-scripts">
+          <button class="tab-btn active" data-tab="editor" data-workspace="scripts">编辑器</button>
+          <button class="tab-btn" data-tab="path" data-workspace="scripts">假设路径</button>
+          <button class="tab-btn" data-tab="simulate" data-workspace="scripts">试玩验证</button>
+        </div>
+
+        <div id="tab-editor" class="script-tab active">
+          <div class="editor-toolbar">
+            <button type="button" id="script-diff-btn" class="btn-action">对比生产版</button>
+            <span id="script-draft-status" class="draft-status">草稿未保存到缓冲区</span>
+          </div>
+          <div id="script-diff-panel" class="diff-panel hidden"></div>
+          <div id="validation-bar" class="validation-bar"></div>
+          <div class="editor-area">
+            <textarea id="json-editor" spellcheck="false" placeholder="选择一个剧本或新建…"></textarea>
+            <div class="field-ref">
+              <div class="field-ref-title">字段说明</div>
+              <div class="field-row"><div class="field-name">id</div><div class="field-desc">唯一标识符，用作文件名</div></div>
+              <div class="field-row"><div class="field-name">title</div><div class="field-desc">剧本标题</div></div>
+              <div class="field-row"><div class="field-name">origin_tag</div><div class="field-desc">影视同人 / 你也一定遇到过</div></div>
+              <div class="field-row"><div class="field-name">theme_tags</div><div class="field-desc">数组，如 ["恋爱","友情"]</div></div>
+              <div class="field-row"><div class="field-name">teaser</div><div class="field-desc">列表页简介文字</div></div>
+              <div class="field-row"><div class="field-name">briefing</div><div class="field-desc">入场须知正文</div></div>
+              <div class="field-row"><div class="field-name">objective</div><div class="field-desc">玩家目标描述</div></div>
+              <div class="field-row"><div class="field-name">background</div><div class="field-desc">剧情背景（给 LLM）</div></div>
+              <div class="field-row"><div class="field-name">ai_character</div><div class="field-desc">name / persona / intro</div></div>
+              <div class="field-row"><div class="field-name">player_character</div><div class="field-desc">name / persona</div></div>
+              <div class="field-row"><div class="field-name">stats</div><div class="field-desc">{名: {initial, min, max, direction}}</div></div>
+              <div class="field-row"><div class="field-name">key_points</div><div class="field-desc">[{id, description, hit_stat_changes}]</div></div>
+              <div class="field-row"><div class="field-name">pitfalls</div><div class="field-desc">[{id, description, hit_stat_changes}]</div></div>
+              <div class="field-row"><div class="field-name">win_condition</div><div class="field-desc">如: 好感度 >= 70 且 愤怒值 &lt;= 20</div></div>
+              <div class="field-row"><div class="field-name">lose_condition</div><div class="field-desc">如: 愤怒值 >= 80</div></div>
+              <div class="field-row"><div class="field-name">max_turns</div><div class="field-desc">最大回合数</div></div>
+              <div class="field-row"><div class="field-name">opening_line</div><div class="field-desc">AI 开场白</div></div>
+              <div class="field-row"><div class="field-name">emotion_vocabulary</div><div class="field-desc">情绪词数组，如 ["开心","平静"]</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-path" class="script-tab">
+          <div class="path-scroll">
+            <div class="path-summary" id="path-summary">
+              <div class="path-summary-title">关键参数</div>
+              <div class="path-params" id="path-params">请在编辑器中选择或加载剧本</div>
+              <div class="path-stats-grid" id="path-stats-grid"></div>
+              <div class="path-outcome ongoing" id="path-outcome">勾选下方关键点/减分点，查看假设结果</div>
+            </div>
+            <div class="path-section">
+              <div class="path-section-title">关键点（假设命中）</div>
+              <div id="path-key-points"></div>
+            </div>
+            <div class="path-section">
+              <div class="path-section-title">减分点（假设踩中）</div>
+              <div id="path-pitfalls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-simulate" class="script-tab">
+          <div class="sim-topbar">
+            <span id="sim-label">请先选择剧本</span>
+            <button id="sim-export-debug-btn" class="sim-export-btn" disabled>导出本局调试记录</button>
+            <button id="sim-start-btn" class="sim-start-btn" disabled>开始测试对局</button>
+            <button id="sim-reset-btn" class="sim-reset-btn hidden">重新开始</button>
+          </div>
+          <div class="sim-body">
+            <div class="sim-messages" id="sim-messages"></div>
+            <div class="sim-stat-board">
+              <div class="sim-stat-board-header">数值节奏看板</div>
+              <div class="sim-stat-board-body" id="sim-stat-timeline">
+                <div class="timeline-empty">开始测试对局后，这里会展示各轮数值变化轨迹与难度节奏。</div>
+              </div>
+            </div>
+          </div>
+          <div class="sim-footer">
+            <div class="stats-row" id="sim-stats-row"></div>
+            <div class="sim-input-row">
+              <input id="sim-input" class="sim-input" type="text" placeholder="以玩家身份输入测试对话…" disabled>
+              <button id="sim-send-btn" class="sim-send-btn" disabled>➤</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LLM / Prompt workspace ── -->
+    <div id="workspace-llm" class="workspace">
+      <div class="llm-workspace-header">
+        <div class="llm-workspace-title">LLM 调试</div>
+        <div class="llm-workspace-desc">配置模型、编辑 Prompt 模板，并选择剧本进行渲染预览</div>
       </div>
 
-      <!-- Editor tab -->
-      <div id="tab-editor" class="active">
-        <div id="validation-bar" class="validation-bar"></div>
-        <div class="editor-area">
-          <textarea id="json-editor" spellcheck="false" placeholder="选择一个剧本或新建…"></textarea>
-          <div class="field-ref">
-            <div class="field-ref-title">字段说明</div>
-            <div class="field-row"><div class="field-name">id</div><div class="field-desc">唯一标识符，用作文件名</div></div>
-            <div class="field-row"><div class="field-name">title</div><div class="field-desc">剧本标题</div></div>
-            <div class="field-row"><div class="field-name">origin_tag</div><div class="field-desc">影视同人 / 你也一定遇到过</div></div>
-            <div class="field-row"><div class="field-name">theme_tags</div><div class="field-desc">数组，如 ["恋爱","友情"]</div></div>
-            <div class="field-row"><div class="field-name">teaser</div><div class="field-desc">列表页简介文字</div></div>
-            <div class="field-row"><div class="field-name">briefing</div><div class="field-desc">入场须知正文</div></div>
-            <div class="field-row"><div class="field-name">objective</div><div class="field-desc">玩家目标描述</div></div>
-            <div class="field-row"><div class="field-name">background</div><div class="field-desc">剧情背景（给 LLM）</div></div>
-            <div class="field-row"><div class="field-name">ai_character</div><div class="field-desc">name / persona / intro</div></div>
-            <div class="field-row"><div class="field-name">player_character</div><div class="field-desc">name / persona</div></div>
-            <div class="field-row"><div class="field-name">stats</div><div class="field-desc">{名: {initial, min, max, direction}}</div></div>
-            <div class="field-row"><div class="field-name">key_points</div><div class="field-desc">[{id, description, hit_stat_changes}]</div></div>
-            <div class="field-row"><div class="field-name">pitfalls</div><div class="field-desc">[{id, description, hit_stat_changes}]</div></div>
-            <div class="field-row"><div class="field-name">win_condition</div><div class="field-desc">如: 好感度 >= 70 且 愤怒值 &lt;= 20</div></div>
-            <div class="field-row"><div class="field-name">lose_condition</div><div class="field-desc">如: 愤怒值 >= 80</div></div>
-            <div class="field-row"><div class="field-name">max_turns</div><div class="field-desc">最大回合数</div></div>
-            <div class="field-row"><div class="field-name">opening_line</div><div class="field-desc">AI 开场白</div></div>
-            <div class="field-row"><div class="field-name">emotion_vocabulary</div><div class="field-desc">情绪词数组，如 ["开心","平静"]</div></div>
+      <div class="dev-llm-bar in-llm-workspace">
+        <button type="button" id="dev-llm-toggle" class="dev-llm-toggle">
+          <span id="dev-llm-chevron">▼</span>
+          <strong>LLM 配置</strong>
+          <span class="dev-llm-summary" id="dev-llm-summary">导演 / 演员模型</span>
+        </button>
+        <div id="dev-llm-panel" class="dev-llm-panel">
+          <div class="dev-llm-field">
+            <label>Provider</label>
+            <select id="dev-llm-provider">
+              <option value="doubao">豆包 / 火山引擎</option>
+              <option value="openai">OpenAI</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="dev-llm-field dev-llm-field-wide">
+            <label>API Base</label>
+            <input id="dev-llm-api-base" type="text" placeholder="https://...">
+          </div>
+          <div class="dev-llm-field dev-llm-field-wide">
+            <label>API Key</label>
+            <input id="dev-llm-api-key" type="password" placeholder="sk-...">
+          </div>
+          <div class="dev-llm-field">
+            <label>导演 Agent Model</label>
+            <input id="dev-llm-director-model" type="text" placeholder="model id">
+          </div>
+          <div class="dev-llm-field">
+            <label>演员 Agent Model</label>
+            <input id="dev-llm-roleplay-model" type="text" placeholder="model id">
+          </div>
+          <div class="dev-llm-actions">
+            <label class="dev-llm-same"><input type="checkbox" id="dev-llm-same-model" checked> 导演与演员使用同一模型</label>
+            <button type="button" id="dev-llm-save-btn" class="dev-llm-test-btn">保存配置</button>
+            <button type="button" id="dev-llm-test-btn" class="dev-llm-test-btn">测试连接</button>
+            <span id="dev-llm-status" style="font-size:11px;color:var(--text-muted)"></span>
           </div>
         </div>
       </div>
 
-      <!-- Simulate tab -->
-      <div id="tab-simulate">
-        <div class="sim-topbar">
-          <span id="sim-label">选择剧本后开始测试</span>
-          <button id="sim-start-btn" class="sim-start-btn" disabled>开始测试对局</button>
-          <button id="sim-reset-btn" class="sim-reset-btn">重新开始</button>
-        </div>
-        <div class="sim-messages" id="sim-messages"></div>
-        <div class="sim-footer">
-          <div class="stats-row" id="sim-stats-row"></div>
-          <div class="sim-input-row">
-            <input id="sim-input" class="sim-input" type="text" placeholder="以玩家身份输入测试对话…" disabled>
-            <button id="sim-send-btn" class="sim-send-btn" disabled>➤</button>
+      <div class="llm-workspace-body">
+        <div id="tab-prompts" class="llm-tab active">
+          <div class="prompt-topbar">
+            <label style="font-size:12px;color:var(--text-secondary)">预览剧本</label>
+            <select id="prompt-script-select"></select>
+            <input id="prompt-preview-message" type="text" placeholder="示例玩家发言…" style="min-width:220px">
+            <button type="button" id="prompt-preview-btn" class="btn-action">渲染预览</button>
+            <div class="prompt-topbar-actions">
+              <button type="button" id="prompt-diff-btn" class="btn-action">对比生产版</button>
+              <button type="button" id="prompt-draft-btn" class="btn-action draft">Save Draft</button>
+              <button type="button" id="prompt-publish-btn" class="btn-action accent">保存并发布</button>
+            </div>
+          </div>
+          <div id="prompt-diff-panel" class="diff-panel hidden"></div>
+          <div class="prompt-body">
+            <div class="prompt-sidebar" id="prompt-nav"></div>
+            <div class="prompt-main">
+              <div class="prompt-editor-toolbar">
+                <strong id="prompt-active-label" style="font-size:12px">导演 · system</strong>
+                <span id="prompt-draft-status" class="draft-status">草稿未保存到缓冲区</span>
+              </div>
+              <div class="prompt-editor-area">
+                <textarea id="prompt-textarea" class="prompt-textarea" spellcheck="false"></textarea>
+              </div>
+            </div>
+            <div class="prompt-preview-panel">
+              <div class="prompt-preview-header">渲染预览</div>
+              <div class="prompt-preview-body" id="prompt-preview-body">
+                <div class="diff-empty">选择剧本并点击「渲染预览」查看导演/演员 Prompt</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -273,6 +517,6 @@
   </div>
 </div>
 
-<script src="/dev/dev.js"></script>
+<script src="/dev/dev.js?v=8"></script>
 </body>
 </html>

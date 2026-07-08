@@ -11,3 +11,6 @@ venv/
 # Node
 node_modules/
 dist/
+
+# Dev editor drafts (local buffer, not production)
+dev_drafts/
