@@ -2,17 +2,19 @@
 
 import hashlib
 import hmac
-import os
 import secrets
 import time
 
 from fastapi import Cookie, HTTPException
 
+from game.settings import get_settings
+
 TOKEN_TTL_SECONDS = 7 * 24 * 3600
 
 
 def _password() -> str | None:
-    return os.environ.get("DEV_MODE_PASSWORD") or None
+    pw = get_settings().dev_mode_password.strip()
+    return pw or None
 
 
 def _secret() -> bytes:

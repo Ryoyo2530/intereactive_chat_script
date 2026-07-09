@@ -16,3 +16,7 @@ services:
         sync: false
       - key: LLM_MODEL
         value: doubao-seed-2-0-lite-260428
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "120"
+      - key: LOG_LEVEL
+        value: INFO

@@ -1,6 +1,7 @@
-import os
 from dataclasses import dataclass
 from typing import Any
+
+from game.settings import get_settings
 
 PROVIDERS: dict[str, dict[str, str]] = {
     "doubao": {
@@ -43,10 +44,11 @@ class LLMConfig:
 
 
 def _env_config() -> LLMConfig | None:
-    api_key = os.getenv("LLM_API_KEY", "").strip()
-    api_base = os.getenv("LLM_API_BASE", "").strip()
-    model = os.getenv("LLM_MODEL", "").strip()
-    provider = os.getenv("LLM_PROVIDER", "doubao").strip() or "doubao"
+    settings = get_settings()
+    api_key = settings.llm_api_key.strip()
+    api_base = settings.llm_api_base.strip()
+    model = settings.llm_model.strip()
+    provider = settings.llm_provider.strip() or "doubao"
     if not api_key or not api_base or not model:
         return None
     return LLMConfig(provider=provider, api_base=api_base, api_key=api_key, model=model)

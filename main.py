@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -6,17 +5,14 @@ from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from game.logging_config import setup_logging
 from game.middleware import RateLimitMiddleware, StaticCacheMiddleware
 from game.settings import get_settings
 from routers import dev_drafts, dev_prompts, dev_scripts, dev_simulate, player
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 settings = get_settings()
-
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+setup_logging(settings.log_level)
 
 app = FastAPI(title="入戏")
 

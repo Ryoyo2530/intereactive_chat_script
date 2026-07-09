@@ -114,11 +114,13 @@ routers/
 
 | 项 | 实现 |
 |----|------|
-| 配置 | `game/settings.py`（pydantic-settings） |
-| 日志 | `main.py` 结构化时间戳格式 |
-| 限流 | `game/middleware.py` 按 IP 限制 `/api/*`（默认 120/min，429） |
-| 压缩 | `GZipMiddleware` |
+| 配置 | `game/settings.py`（pydantic-settings）；`llm/config`、`dev/auth`、`main` 统一读取 |
+| 日志 | `game/logging_config.py` → `%(asctime)s %(levelname)s %(name)s %(message)s` |
+| 限流 | `game/middleware.py` 按 IP 限制 `/api/*`（`RATE_LIMIT_PER_MINUTE`，默认 120/min，429） |
+| 压缩 | `GZipMiddleware`（`minimum_size=500`） |
 | 静态缓存 | `/echoes/`、`/vendor/` 等 `Cache-Control: public, max-age=86400` |
+
+环境变量见 `.env.example`：`LLM_*`、`DEV_MODE_PASSWORD`、`RATE_LIMIT_PER_MINUTE`、`LOG_LEVEL`。
 
 ### 5.2 开发者鉴权
 
@@ -149,13 +151,14 @@ routers/
 - [x] 全量产剧本 `echo_phrases`
 - [x] `original_bright_001` 明快调性测试剧本
 - [x] 开发者鉴权 401 修复（签名 token）
-- [x] 后端加固：settings / 限流 / GZip / 静态缓存
+- [x] 后端加固：settings 全链路 / 限流 / GZip / 静态缓存 / 结构化日志
 - [x] 「请帮帮我」提示 API + 前端
+- [x] 部署验证脚本扩展（缓存、GZip、限流可选压测）
 
 ### 待办
 
 - [ ] 移动端回归（iOS Safari / 微信内置浏览器）
-- [ ] 部署验证 + 限流压测（429）
+- [ ] 线上执行 `VERIFY_RATE_LIMIT=1 ./scripts/verify_deploy.sh <url>` 压测确认
 - [ ] Dev 模式视觉与 Echoes 风格对齐（可选）
 - [ ] 验证 script 级 `echo_phrases` 覆盖默认池且重复触发文案有变化
 
@@ -170,3 +173,17 @@ uvicorn main:app --reload
 1. 玩家端：选本 → briefing → 对局 → 触发 Echo → 点「请帮帮我」
 2. 选 `明快调性 · 电梯偶遇`，确认行高/动效更快
 3. 开发者模式：`/dev` 登录 → 剧本列表加载（无 401）→ 试玩验证
+
+### 后端加固验证
+
+```bash
+# 静态缓存 + GZip + API 冒烟（本地或线上）
+./scripts/verify_deploy.sh http://127.0.0.1:8000
+
+# 限流压测（建议低阈值启动服务后执行）
+RATE_LIMIT_PER_MINUTE=10 uvicorn main:app --port 8000
+./scripts/verify_rate_limit.sh http://127.0.0.1:8000 10
+
+# 线上部署含限流压测
+VERIFY_RATE_LIMIT=1 ./scripts/verify_deploy.sh https://ruxi.onrender.com
+```

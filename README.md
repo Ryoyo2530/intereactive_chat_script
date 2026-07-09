@@ -316,3 +316,50 @@ Render 监听 `main`（见 `render.yaml`）。
 - **Start:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
 部署环境需配置 `LLM_*` 与（可选）`DEV_MODE_PASSWORD`。
+
+### Render 免费实例：性能与限制
+
+当前公网部署使用 Render **Free Web Service**（见 `render.yaml` 的 `plan: free`）。适合 demo / 小范围分享，**不适合**高并发或 SLA 要求高的生产场景。
+
+#### 平台资源（Free 档典型值）
+
+| 项 | 大约水平 |
+|----|----------|
+| 内存 | 512 MB |
+| CPU | 共享、偏低（约 0.1 CPU 量级） |
+| 实例数 | 1（无水平扩展） |
+| 文件系统 | **易失** — 重启 / 重新部署后，`/dev` 在线保存的剧本与草稿会丢失（git 里的 `scripts/`、`prompts/` 会随部署恢复） |
+| 空闲行为 | 约 **15 分钟**无请求后休眠；下次访问需 **冷启动**（常见 30–60 秒，视依赖安装与唤醒情况而定） |
+
+#### 对本项目的实际体验
+
+| 场景 | 预期 |
+|------|------|
+| 打开首页 / 静态资源 | 实例**唤醒后**较快；`echoes/`、`vendor/` 等有 24h 浏览器缓存 |
+| 选剧本、读 briefing | 毫秒级（读 JSON，不调 LLM） |
+| **每轮对话** | 主要耗时在 **LLM**（导演 + 演员各 1 次调用，流式输出）。通常 **数秒～十余秒/轮**，与模型、Prompt 长度、火山引擎 API 延迟有关，与 Render 关系不大 |
+| 「请帮帮我」 | 额外 **1 次** LLM 调用，再叠加数秒 |
+| 同时进行中的对局 | 免费单实例 + 内存 Session，**同时 1～3 局**较稳；再多容易变慢或触发 OOM / 排队感 |
+| API 限流 | 每 IP **120 次/分钟**（`RATE_LIMIT_PER_MINUTE`），超限返回 **429** |
+
+#### 架构上的边界（v1.3 当前实现）
+
+- **Session 在进程内存** — 服务重启后所有进行中的对局丢失；不支持多实例共享状态。
+- **限流在进程内存** — 仅对当前实例有效；若将来升级到多实例需换 Redis 等方案。
+- **瓶颈通常在 LLM API**，而非 Render 本身；升级 Render 套餐对「每句话等多久」帮助有限，换更快模型 / 优化 Prompt 更直接。
+
+#### 部署后自检
+
+```bash
+# 常规冒烟（首页、API、静态缓存等）
+./scripts/verify_deploy.sh https://ruxi.onrender.com
+
+# 含限流压测（会对线上连发约 125 次 /api/scripts，建议低峰期执行）
+VERIFY_RATE_LIMIT=1 ./scripts/verify_deploy.sh https://ruxi.onrender.com
+```
+
+#### 若访问量上来
+
+1. 内容改动走 **git → main → 自动部署**，不要只依赖 `/dev` 线上保存。  
+2. 考虑 Render **Starter** 或以上（不休眠、更多 CPU/内存）。  
+3. 长期需要：持久化 Session、多实例、队列削峰 — 属于 v2 架构，当前 demo 未做。

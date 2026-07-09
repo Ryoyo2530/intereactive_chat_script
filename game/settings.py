@@ -3,6 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,13 +14,13 @@ class AppSettings(BaseSettings):
         extra="ignore",
     )
 
-    llm_provider: str = "doubao"
-    llm_api_base: str = ""
-    llm_api_key: str = ""
-    llm_model: str = ""
-    dev_mode_password: str = ""
-    rate_limit_per_minute: int = 120
-    log_level: str = "INFO"
+    llm_provider: str = Field(default="doubao", validation_alias="LLM_PROVIDER")
+    llm_api_base: str = Field(default="", validation_alias="LLM_API_BASE")
+    llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
+    llm_model: str = Field(default="", validation_alias="LLM_MODEL")
+    dev_mode_password: str = Field(default="", validation_alias="DEV_MODE_PASSWORD")
+    rate_limit_per_minute: int = Field(default=120, validation_alias="RATE_LIMIT_PER_MINUTE")
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
 
 @lru_cache
