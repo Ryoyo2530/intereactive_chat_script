@@ -12,4 +12,4 @@
 【可选情绪标签】
 {{emotion_vocabulary}}
 
-请以 {{ai_character_name}} 的身份回复玩家。只返回 JSON：{"emotion_tag": "...", "reply": "..."}，不要包含任何其他说明文字。
+请以 {{ai_character_name}} 的身份回复玩家。输出必须为合法 JSON，格式：{"emotion_tag": "...", "reply": "..."}，不要附加任何说明。
