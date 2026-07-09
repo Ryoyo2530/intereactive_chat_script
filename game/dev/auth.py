@@ -3,6 +3,8 @@
 import os
 import secrets
 
+from fastapi import Cookie, HTTPException
+
 _tokens: set[str] = set()
 
 
@@ -35,3 +37,8 @@ def validate_token(token: str | None) -> bool:
 
 def revoke_all() -> None:
     _tokens.clear()
+
+
+def require_dev_auth(dev_token: str | None = Cookie(default=None)):
+    if not validate_token(dev_token):
+        raise HTTPException(status_code=401, detail="未授权，请先登录开发者模式")

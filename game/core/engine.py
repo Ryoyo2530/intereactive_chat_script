@@ -2,11 +2,12 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
-from game import director, llm_client, roleplay, prompt_manager
-from game import llm_config
-from game import session as session_store
-from game import condition_parser
-from game import script_repository
+from game.core import director, roleplay, condition_parser
+from game.core import session as session_store
+from game.content import script_repository
+from game.llm import client as llm_client
+from game.llm import config as llm_config
+from game.prompts import manager as prompt_manager
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +263,8 @@ def _build_response(
     outcome: str | None,
     ending_text: str | None,
     emotion_tag: str = "",
+    hit_key_points: list | None = None,
+    hit_pitfalls: list | None = None,
 ) -> dict[str, Any]:
     script = game_session["script"]
 
@@ -282,6 +285,8 @@ def _build_response(
         "emotion_tag": emotion_tag,
         "stats": game_session["stats"],
         "stat_changes": stat_changes or {},
+        "hit_key_points": hit_key_points or [],
+        "hit_pitfalls": hit_pitfalls or [],
         "turn": game_session["turn"],
         "max_turns": script.get("max_turns", 15),
         "game_over": game_over,
@@ -338,6 +343,9 @@ def start_game(
             "player_character_name": script["player_character"]["name"],
             "stats_config": script.get("stats", {}),
             "ending_titles": script.get("ending_titles", {}),
+            "echo_phrases": script.get("echo_phrases"),
+            "tone_preset": script.get("tone_preset", "从容"),
+            "chapter_title": script.get("chapter_title", script["title"]),
         },
         "opening_line": opening,
         "stats": game_session["stats"],
@@ -364,9 +372,14 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+    hit_kp = director_result.get("hit_key_points") or []
+    hit_pf = director_result.get("hit_pitfalls") or []
 
     if game_over:
-        return _build_response(game_session, "", stat_changes, True, outcome, ending_text)
+        return _build_response(
+            game_session, "", stat_changes, True, outcome, ending_text,
+            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+        )
 
     reaction = director_result.get("reaction") or {}
     roleplay_result = roleplay.respond(
@@ -377,7 +390,10 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
     )
     reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
     emotion_tag = roleplay_result.get("emotion_tag", "")
-    return _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
+    return _build_response(
+        game_session, reply, stat_changes, False, None, None, emotion_tag,
+        hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+    )
 
 
 def _agent_debug_payload(
@@ -414,9 +430,14 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+    hit_kp = director_result.get("hit_key_points") or []
+    hit_pf = director_result.get("hit_pitfalls") or []
 
     if game_over:
-        response = _build_response(game_session, "", stat_changes, True, outcome, ending_text)
+        response = _build_response(
+            game_session, "", stat_changes, True, outcome, ending_text,
+            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+        )
         response["_debug"] = {
             "director": _agent_debug_payload(director_result, director_meta, director_cfg),
             "roleplay": None,
@@ -433,7 +454,10 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
     )
     reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
     emotion_tag = roleplay_result.get("emotion_tag", "")
-    response = _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
+    response = _build_response(
+        game_session, reply, stat_changes, False, None, None, emotion_tag,
+        hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+    )
     response["_debug"] = {
         "director": _agent_debug_payload(director_result, director_meta, director_cfg),
         "roleplay": _agent_debug_payload(roleplay_result, roleplay_meta, roleplay_cfg),
@@ -460,9 +484,14 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+    hit_kp = director_result.get("hit_key_points") or []
+    hit_pf = director_result.get("hit_pitfalls") or []
 
     if game_over:
-        response = _build_response(game_session, "", stat_changes, True, outcome, ending_text)
+        response = _build_response(
+            game_session, "", stat_changes, True, outcome, ending_text,
+            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+        )
         yield {"type": "done", **response}
         return
 
@@ -496,5 +525,8 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
         reply = streamed_reply or roleplay.ROLEPLAY_FALLBACK["reply"]
         emotion_tag = ""
 
-    response = _build_response(game_session, reply, stat_changes, False, None, None, emotion_tag)
+    response = _build_response(
+        game_session, reply, stat_changes, False, None, None, emotion_tag,
+        hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+    )
     yield {"type": "done", **response}

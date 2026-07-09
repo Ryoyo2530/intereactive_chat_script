@@ -1,8 +1,9 @@
 import logging
 from typing import Any
 
-from game import llm_client, prompt_manager
-from game.llm_config import LLMConfig
+from game.llm import client as llm_client
+from game.llm.config import LLMConfig
+from game.prompts import manager as prompt_manager
 
 logger = logging.getLogger(__name__)
 

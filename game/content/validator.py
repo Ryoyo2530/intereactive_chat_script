@@ -1,7 +1,7 @@
 """Static schema validation for script JSON files."""
 
 from typing import Any
-from game import condition_parser
+from game.core import condition_parser
 
 REQUIRED_FIELDS = [
     "title", "origin_tag", "theme_tags", "background",

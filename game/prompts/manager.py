@@ -1,6 +1,6 @@
 from pathlib import Path
 
-PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
 
 
 def load_template(template_name: str, overrides: dict[str, str] | None = None) -> str:

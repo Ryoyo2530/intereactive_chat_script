@@ -7,7 +7,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from game.llm_config import LLMConfig
+from game.llm.config import LLMConfig
 
 logger = logging.getLogger(__name__)
 

@@ -8,11 +8,11 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from game import prompt_manager
+from game.prompts import manager as prompt_manager
 
 logger = logging.getLogger(__name__)
 
-DRAFTS_ROOT = Path(__file__).resolve().parent.parent / "dev_drafts"
+DRAFTS_ROOT = Path(__file__).resolve().parent.parent.parent / "dev_drafts"
 SCRIPT_DRAFTS_DIR = DRAFTS_ROOT / "scripts"
 PROMPT_DRAFTS_DIR = DRAFTS_ROOT / "prompts"
 

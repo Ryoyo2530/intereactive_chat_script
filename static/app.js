@@ -6,15 +6,16 @@ const PROVIDER_DEFAULTS = {
   custom: { api_base: '', model: '' },
 };
 
+/** Tag palette — low-saturation, aligned with Echoes paper/sage/terracotta tokens */
 const TAG_COLORS = {
-  '影视同人':     { bg: '#EDE9FE', text: '#5B21B6' },
-  '你也一定遇到过': { bg: '#FCE7F3', text: '#9D174D' },
-  '恋爱':        { bg: '#FEE2E2', text: '#991B1B' },
-  '职场':        { bg: '#DBEAFE', text: '#1E40AF' },
-  '家庭':        { bg: '#D1FAE5', text: '#065F46' },
-  '友情':        { bg: '#FEF3C7', text: '#92400E' },
-  '社交':        { bg: '#E0F2FE', text: '#0C4A6E' },
-  _default:     { bg: '#F3F4F6', text: '#4B5563' },
+  '影视同人':     { bg: '#EDE8DF', text: '#5C4A3A', border: '#D5CEC3' },
+  '你也一定遇到过': { bg: '#E8ECE8', text: '#4B6355', border: '#C8D4CA' },
+  '恋爱':        { bg: '#EDE3DF', text: '#8A4D4A', border: '#D9C8C4' },
+  '职场':        { bg: '#E6EAE6', text: '#3D5247', border: '#C5CCC6' },
+  '家庭':        { bg: '#EBE8E3', text: '#6B5E52', border: '#D5D0C8' },
+  '友情':        { bg: '#E5EBE6', text: '#4A5F4F', border: '#C2D0C6' },
+  '社交':        { bg: '#EAE6E1', text: '#7A6A5C', border: '#D4CCC2' },
+  _default:     { bg: '#EDEAE4', text: '#8A8578', border: '#DDD8CF' },
 };
 
 const state = {
@@ -45,11 +46,7 @@ function showScreen(name) {
 function switchTab(tab) {
   state.activeTab = tab;
   $$('.tab-btn').forEach((btn) => {
-    const active = btn.dataset.tab === tab;
-    btn.classList.toggle('bg-warm-500', active);
-    btn.classList.toggle('text-white', active);
-    btn.classList.toggle('shadow-sm', active);
-    btn.classList.toggle('text-stone-500', !active);
+    btn.classList.toggle('is-active', btn.dataset.tab === tab);
   });
   $$('.tab-panel').forEach((panel) => panel.classList.add('hidden'));
   $(`#tab-${tab}`)?.classList.remove('hidden');
@@ -97,13 +94,13 @@ function updateConfigUI() {
   const status = $('#cfg-status');
   if (!status) return;
   if (configured) {
-    status.className = 'rounded-xl px-3 py-2 text-xs bg-emerald-50 text-emerald-700 border border-emerald-100';
+    status.style.color = 'var(--echo-accent)';
     status.textContent = state.serverHasEnvConfig && !loadStoredLLMConfig()?.api_key
       ? '已就绪：使用服务端环境变量配置'
       : '已就绪：使用本地保存的配置';
     status.classList.remove('hidden');
   } else {
-    status.className = 'rounded-xl px-3 py-2 text-xs bg-amber-50 text-amber-700 border border-amber-100';
+    status.style.color = 'var(--echo-danger)';
     status.textContent = '尚未配置：请填写 Provider、API Key 和 Model';
     status.classList.remove('hidden');
   }
@@ -145,131 +142,61 @@ function onProviderChange() {
 
 function showCfgMessage(text, ok = true) {
   const status = $('#cfg-status');
-  status.className = `rounded-xl px-3 py-2 text-xs ${ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'}`;
+  status.style.color = ok ? 'var(--echo-accent)' : 'var(--echo-danger)';
   status.textContent = text;
   status.classList.remove('hidden');
 }
 
-function statBarFill(value, cfg = {}) {
-  const max = cfg.max ?? 100;
-  const direction = cfg.direction ?? 'lower_is_better';
-  const ratio = value / max;
-  const severity = direction === 'lower_is_better' ? ratio : (1 - ratio);
-  if (severity < 0.3) return '#C0DD97';
-  if (severity < 0.7) return '#BA7517';
-  return '#E24B4A';
+function tagBadgeEl(tag) {
+  const c = TAG_COLORS[tag] || TAG_COLORS._default;
+  const span = document.createElement('span');
+  span.className = 'echoes-tag echoes-tag-colored';
+  span.textContent = tag;
+  span.style.background = c.bg;
+  span.style.color = c.text;
+  span.style.borderColor = c.border;
+  return span;
 }
 
-function renderStats(changes = {}) {
-  const container = $('#stats-bar');
-  container.innerHTML = '';
+function buildScriptCard(script) {
+  const card = document.createElement('button');
+  card.className = 'echoes-script-card';
 
-  for (const [name, value] of Object.entries(state.stats)) {
-    const cfg = state.statsConfig[name] || {};
-    const block = document.createElement('div');
+  const tags = document.createElement('div');
+  tags.className = 'echoes-script-card-tags';
+  if (script.origin_tag) tags.appendChild(tagBadgeEl(script.origin_tag));
+  for (const t of (script.theme_tags || [])) tags.appendChild(tagBadgeEl(t));
+  if (tags.childNodes.length) card.appendChild(tags);
 
-    const labels = document.createElement('div');
-    labels.className = 'stat-row-labels';
-    labels.innerHTML = `<span>${name}</span><span>${value}${changes[name] ? ` (${changes[name] > 0 ? '+' : ''}${changes[name]})` : ''}</span>`;
+  const title = document.createElement('h3');
+  title.className = 'echoes-script-card-title';
+  title.textContent = script.title;
+  card.appendChild(title);
 
-    const track = document.createElement('div');
-    track.className = 'stat-track';
-    const fill = document.createElement('div');
-    fill.className = 'stat-fill';
-    fill.style.width = `${value}%`;
-    fill.style.height = '100%';
-    fill.style.borderRadius = '3px';
-    fill.style.background = statBarFill(value, cfg);
-    track.appendChild(fill);
-
-    block.appendChild(labels);
-    block.appendChild(track);
-    container.appendChild(block);
-  }
-}
-
-function updateTurnIndicator() {
-  $('#turn-indicator').textContent = `第 ${state.turn}/${state.maxTurns} 轮`;
-}
-
-function scrollChatToBottom() {
-  const area = $('#chat-area');
-  area.scrollTop = area.scrollHeight;
-}
-
-function renderEmotionTag(nameEl, tag) {
-  const existing = nameEl.querySelector('.emotion-tag');
-  if (existing) existing.remove();
-  if (!tag) return;
-  const badge = document.createElement('span');
-  badge.className = 'emotion-tag';
-  badge.textContent = tag;
-  nameEl.appendChild(badge);
-}
-
-function createMessageBubble(role, character) {
-  const wrapper = document.createElement('div');
-  wrapper.className = `msg-enter msg-row ${role === 'user' ? 'user' : 'ai'}`;
-
-  const nameEl = document.createElement('p');
-  nameEl.className = `msg-name ${role === 'user' ? 'user-name' : ''}`;
-  nameEl.textContent = character;
-
-  const bubble = document.createElement('div');
-  bubble.className = role === 'user' ? 'bubble-user' : 'bubble-ai';
-
-  const text = document.createElement('p');
-  text.style.margin = '0';
-  text.className = role === 'assistant' ? '' : '';
-  bubble.appendChild(text);
-
-  if (role === 'assistant') {
-    wrapper.appendChild(nameEl);
-    wrapper.appendChild(bubble);
-  } else {
-    wrapper.appendChild(bubble);
-    wrapper.appendChild(nameEl);
+  if (script.teaser) {
+    const teaser = document.createElement('p');
+    teaser.className = 'echoes-script-card-teaser';
+    teaser.textContent = script.teaser;
+    card.appendChild(teaser);
   }
 
-  return { wrapper, text, nameEl };
+  const bottom = document.createElement('div');
+  bottom.className = 'echoes-script-card-meta';
+  bottom.innerHTML = `
+    <span>${script.player_role_hint || ''}</span>
+    <span>${script.estimated_turns_hint || ''}</span>
+  `;
+  card.appendChild(bottom);
+
+  card.addEventListener('click', () => showScriptModal(script.id));
+  return card;
 }
 
-function appendMessage(role, content, character, emotionTag = '') {
-  const area = $('#chat-area');
-  const { wrapper, text, nameEl } = createMessageBubble(role, character);
-  text.textContent = content;
-  if (role === 'assistant' && emotionTag) renderEmotionTag(nameEl, emotionTag);
-  area.appendChild(wrapper);
-  scrollChatToBottom();
-}
-
-function appendTypingBubble(character) {
-  const area = $('#chat-area');
-  const { wrapper, text, nameEl } = createMessageBubble('assistant', character);
-  wrapper.dataset.typing = 'true';
-  text.innerHTML = '<span class="typing-dots-v1 inline-flex gap-1"><span></span><span></span><span></span></span>';
-  area.appendChild(wrapper);
-  scrollChatToBottom();
-  return { wrapper, text, nameEl };
-}
-
-function promoteTypingBubbleToStream(bubbleRef) {
-  const { wrapper, text, nameEl } = bubbleRef;
-  delete wrapper.dataset.typing;
-  text.textContent = '';
-  text.classList.add('streaming-text');
-  return { wrapper, text, nameEl };
-}
-
-function showEnding(outcome, text) {
+function showEnding(outcome, text, turn, maxTurns) {
   const isWin = outcome === 'win';
-  const iconWrap = $('#ending-icon-wrap');
-  iconWrap.className = `ending-icon-wrap ${isWin ? 'win' : 'lose'}`;
-  iconWrap.textContent = isWin ? '✓' : '✕';
-
   const titles = state.script?.ending_titles || {};
   const outcomeLabel = isWin ? '达成' : '失败';
-  $('#ending-meta').textContent = `第 ${state.turn} / ${state.maxTurns} 轮 · ${outcomeLabel}`;
+  $('#ending-meta').textContent = `第 ${turn ?? state.turn} / ${maxTurns ?? state.maxTurns} 轮 · ${outcomeLabel}`;
   $('#ending-title').textContent = isWin
     ? (titles.win || '达成目标')
     : (titles.lose || '未能达成目标');
@@ -279,18 +206,18 @@ function showEnding(outcome, text) {
   statsEl.innerHTML = '';
   for (const [name, value] of Object.entries(state.stats)) {
     const item = document.createElement('div');
-    item.className = 'ending-stat-item';
-    item.innerHTML = `<p>最终${name}</p><strong>${value}</strong>`;
+    item.className = 'echoes-ending-stat';
+    item.innerHTML = `<span>最终${name}</span><strong>${value}</strong>`;
     statsEl.appendChild(item);
   }
 
   $('#ending-overlay').classList.remove('hidden');
-  $('#input-area').classList.add('hidden');
+  $('#echoes-input-area')?.classList.add('hidden');
 }
 
 function hideEnding() {
   $('#ending-overlay').classList.add('hidden');
-  $('#input-area').classList.remove('hidden');
+  $('#echoes-input-area')?.classList.remove('hidden');
 }
 
 function resetToSelect() {
@@ -300,30 +227,12 @@ function resetToSelect() {
   state.turn = 0;
   state.gameOver = false;
 
+  window.dispatchEvent(new CustomEvent('echoes:reset'));
   hideEnding();
-  $('#chat-area').innerHTML = '';
-  $('#stats-bar').innerHTML = '';
-  $('#message-input').value = '';
-  $('#send-btn').disabled = false;
   switchTab('scripts');
   showScreen('select');
   loadScripts();
   refreshLLMStatus();
-}
-
-function parseSSEChunk(buffer) {
-  const events = [];
-  const parts = buffer.split('\n\n');
-  const rest = parts.pop() || '';
-  for (const part of parts) {
-    const line = part.split('\n').find((l) => l.startsWith('data: '));
-    if (line) {
-      try {
-        events.push(JSON.parse(line.slice(6)));
-      } catch (_) { /* ignore partial */ }
-    }
-  }
-  return { events, rest };
 }
 
 const CATEGORY_META = [
@@ -339,55 +248,12 @@ const CATEGORY_META = [
   },
 ];
 
-function tagBadgeEl(tag) {
-  const c = TAG_COLORS[tag] || TAG_COLORS._default;
-  const span = document.createElement('span');
-  span.textContent = tag;
-  span.style.cssText = `background:${c.bg};color:${c.text};display:inline-block;font-size:10px;font-weight:500;padding:2px 8px;border-radius:999px;`;
-  return span;
-}
-
-function buildScriptCard(script) {
-  const card = document.createElement('button');
-  card.className = 'w-full text-left bg-white rounded-2xl p-4 border border-warm-100 hover:border-warm-300 transition group';
-  card.style.cssText = 'border-width:0.5px;';
-
-  const tags = document.createElement('div');
-  tags.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;';
-  if (script.origin_tag) tags.appendChild(tagBadgeEl(script.origin_tag));
-  for (const t of (script.theme_tags || [])) tags.appendChild(tagBadgeEl(t));
-  card.appendChild(tags);
-
-  const title = document.createElement('h3');
-  title.style.cssText = 'font-size:15px;font-weight:500;color:#1c1917;margin-bottom:5px;letter-spacing:0.01em;';
-  title.textContent = script.title;
-  card.appendChild(title);
-
-  if (script.teaser) {
-    const teaser = document.createElement('p');
-    teaser.style.cssText = 'font-size:12.5px;color:#78716c;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:10px;';
-    teaser.textContent = script.teaser;
-    card.appendChild(teaser);
-  }
-
-  const bottom = document.createElement('div');
-  bottom.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
-  bottom.innerHTML = `
-    <span style="font-size:11px;color:#a8a29e;">${script.player_role_hint || ''}</span>
-    <span style="font-size:11px;color:#a8a29e;">${script.estimated_turns_hint || ''}</span>
-  `;
-  card.appendChild(bottom);
-
-  card.addEventListener('click', () => showScriptModal(script.id));
-  return card;
-}
-
 function renderScriptList() {
   const list = $('#script-list');
   list.innerHTML = '';
 
   if (!state.allScripts.length) {
-    list.innerHTML = '<p class="text-center text-stone-400 py-8 text-sm">暂无可用剧本</p>';
+    list.innerHTML = '<p class="echoes-select-sub text-center py-8">暂无可用剧本</p>';
     return;
   }
 
@@ -438,12 +304,15 @@ function renderScriptList() {
 // ── Briefing Modal ──────────────────────────────────────────────
 
 let _briefingScriptId = null;
+let _briefingDetail = null;
 
 function showBriefingStep(n) {
   $('#briefing-step-1').classList.toggle('hidden', n !== 1);
   $('#briefing-step-2').classList.toggle('hidden', n !== 2);
   document.querySelectorAll('.briefing-step').forEach(el => {
-    el.classList.toggle('active', Number(el.dataset.step) === n);
+    const active = Number(el.dataset.step) === n;
+    el.classList.toggle('active', active);
+    el.classList.toggle('is-active', active);
   });
 }
 
@@ -467,7 +336,7 @@ async function showScriptModal(scriptId) {
     return;
   }
 
-  // Step 1: briefing
+  _briefingDetail = detail;
   $('#briefing-script-title').textContent = detail.title;
   $('#briefing-text').textContent = detail.briefing;
   $('#briefing-objective').textContent = detail.objective;
@@ -493,6 +362,7 @@ async function showScriptModal(scriptId) {
 function hideBriefingModal() {
   $('#briefing-overlay').classList.add('hidden');
   _briefingScriptId = null;
+  _briefingDetail = null;
 }
 
 async function confirmStartGame() {
@@ -510,8 +380,9 @@ async function confirmStartGame() {
     if (personaVal) aiPersona = personaVal;
   }
 
+  const scriptDetail = _briefingDetail;
   hideBriefingModal();
-  await startGame(scriptId, aiName, aiPersona);
+  await startGame(scriptId, aiName, aiPersona, scriptDetail);
 }
 
 $('#briefing-cancel-btn').addEventListener('click', hideBriefingModal);
@@ -522,9 +393,7 @@ $('#briefing-overlay').addEventListener('click', (e) => {
   if (e.target === $('#briefing-overlay')) hideBriefingModal();
 });
 
-// ── Scripts ─────────────────────────────────────────────────────
-
-async function startGame(scriptId, aiName = null, aiPersona = null) {
+async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail = null) {
   if (!state.llmConfigured) {
     switchTab('settings');
     updateConfigUI();
@@ -561,127 +430,29 @@ async function startGame(scriptId, aiName = null, aiPersona = null) {
     state.currentScriptId = scriptId;
     state.gameOver = false;
 
-    $('#game-title').textContent = data.script.title;
-    $('#game-objective').textContent = `目标：${data.script.objective}`;
-    $('#chat-area').innerHTML = '';
     hideEnding();
-
-    renderStats();
-    updateTurnIndicator();
-    appendMessage('assistant', data.opening_line, state.aiName);
-
     showScreen('game');
-    $('#message-input').focus();
+    window.dispatchEvent(new CustomEvent('echoes:session-started', {
+      detail: { ...data, scriptDetail },
+    }));
   } catch (err) {
     alert('启动游戏失败，请重试');
     console.error(err);
   }
 }
 
-async function sendMessage(message) {
-  if (!message.trim() || state.gameOver) return;
-
-  appendMessage('user', message, state.playerName);
-  $('#message-input').value = '';
-  $('#send-btn').disabled = true;
-
-  const typingBubble = appendTypingBubble(state.aiName);
-  let streamBubble = null;
-
-  try {
-    const res = await fetch('/api/session/message/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: state.sessionId, message }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Request failed');
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let gotToken = false;
-    let finalData = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const { events, rest } = parseSSEChunk(buffer);
-      buffer = rest;
-
-      for (const event of events) {
-        if (event.type === 'emotion_tag') {
-          if (!gotToken) {
-            streamBubble = promoteTypingBubbleToStream(typingBubble);
-            gotToken = true;
-          }
-          renderEmotionTag(streamBubble.nameEl, event.emotion_tag);
-        } else if (event.type === 'token') {
-          if (!gotToken) {
-            streamBubble = promoteTypingBubbleToStream(typingBubble);
-            gotToken = true;
-          }
-          streamBubble.text.textContent += event.content;
-          scrollChatToBottom();
-        } else if (event.type === 'done') {
-          finalData = event;
-        }
-      }
-    }
-
-    if (!finalData) throw new Error('Stream ended without result');
-
-    if (finalData.game_over) {
-      if (typingBubble?.wrapper?.parentNode) typingBubble.wrapper.remove();
-      if (streamBubble?.wrapper?.parentNode) streamBubble.wrapper.remove();
-    } else if (!gotToken) {
-      typingBubble.wrapper.remove();
-      appendMessage('assistant', finalData.reply, state.aiName, finalData.emotion_tag || '');
-    } else {
-      streamBubble.text.classList.remove('streaming-text');
-      if (finalData.reply && streamBubble.text.textContent !== finalData.reply) {
-        streamBubble.text.textContent = finalData.reply;
-      }
-      renderEmotionTag(streamBubble.nameEl, finalData.emotion_tag || '');
-    }
-
-    state.stats = finalData.stats;
-    state.turn = finalData.turn;
-    renderStats(finalData.stat_changes || {});
-    updateTurnIndicator();
-
-    if (finalData.game_over) {
-      state.gameOver = true;
-      showEnding(finalData.outcome || finalData.result, finalData.ending_text);
-    }
-  } catch (err) {
-    if (typingBubble?.wrapper?.parentNode) {
-      typingBubble.wrapper.remove();
-    }
-    appendMessage('assistant', '（系统暂时无法响应，请稍后再试。）', state.aiName);
-    console.error(err);
-  } finally {
-    $('#send-btn').disabled = false;
-    if (!state.gameOver) $('#message-input').focus();
-  }
-}
-
-$('#message-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  sendMessage($('#message-input').value);
+window.addEventListener('echoes:game-over', (e) => {
+  const d = e.detail || {};
+  state.gameOver = true;
+  state.stats = d.stats || state.stats;
+  state.turn = d.turn ?? state.turn;
+  showEnding(d.outcome, d.ending_text, d.turn, d.maxTurns);
 });
 
-$('#help-btn').addEventListener('click', () => {
-  alert('提示功能即将上线，敬请期待。');
-});
-
-$('#exit-game-btn').addEventListener('click', () => {
+window.addEventListener('echoes:exit', () => {
   state.sessionId = null;
   state.gameOver = false;
+  window.dispatchEvent(new CustomEvent('echoes:reset'));
   showScreen('select');
 });
 

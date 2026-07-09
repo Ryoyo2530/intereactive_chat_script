@@ -11,7 +11,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 PENDING_DIR = SCRIPTS_DIR / "pending_review"
 
 _cache: dict[str, dict[str, Any]] | None = None  # {script_id: full_dict}

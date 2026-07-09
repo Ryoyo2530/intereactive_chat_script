@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from game import condition_parser
-from game import prompt_manager
+from game.core import condition_parser
+from game.prompts import manager as prompt_manager
 
 
 def _midpoint_delta(spec: Any) -> int:

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>世界残响 · Concept Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../echoes/echoes.css">
+</head>
+<body x-data="echoesDemo" x-init="init()">
+  <!-- Demo control bar (not part of production UI) -->
+  <div class="echoes-demo-bar">
+    <span>Concept Demo · 假数据 · 不接后端</span>
+    <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+      <button type="button" @click="resetDemo()">重置</button>
+      <button type="button" @click="toggleTone()">调性：{{ tonePreset }}</button>
+      <button type="button" @click="playNextScripted()" :disabled="busy || turnIndex >= scriptedTurns.length" title="Demo 专用：自动播放下一组预设对话，正式版请用下方输入框">Demo · 自动推进 ▶</button>
+    </div>
+  </div>
+
+  <div class="echoes-shell has-demo-bar">
+    <div class="echoes-layout">
+
+      <!-- Chapter header -->
+      <header class="echoes-chapter">
+        <h1 class="echoes-chapter-title">
+          <span x-text="scriptTitle"></span>
+          <span class="echoes-turn-hint" x-text="turnHint"></span>
+        </h1>
+        <div class="echoes-context">
+          <p class="echoes-briefing" x-text="briefing"></p>
+          <p class="echoes-objective" x-show="objective">目标：<span x-text="objective"></span></p>
+          <div class="echoes-characters">
+            <div class="echoes-char-card">
+              <span class="echoes-char-role">对方</span>
+              <span class="echoes-char-name" x-text="aiName"></span>
+              <p class="echoes-char-intro" x-text="aiIntro"></p>
+            </div>
+            <div class="echoes-char-card">
+              <span class="echoes-char-role">你</span>
+              <span class="echoes-char-name" x-text="playerName"></span>
+              <p class="echoes-char-intro" x-text="playerPersona"></p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- World state -->
+      <section class="echoes-world-state" aria-label="世界状态">
+        <template x-for="stat in statRows" :key="stat.name">
+          <div class="echoes-stat-row">
+            <span class="echoes-stat-name" x-text="stat.label"></span>
+            <div class="echoes-stat-track">
+              <span class="echoes-stat-dot" :style="`left: ${stat.percent}%`"></span>
+            </div>
+            <span class="echoes-stat-value" x-text="stat.value"></span>
+          </div>
+        </template>
+      </section>
+
+      <!-- Reading flow -->
+      <main class="echoes-flow" id="echoes-flow" aria-live="polite">
+        <template x-for="(entry, idx) in entries" :key="entry.id">
+          <div class="echoes-entry" :class="{ 'is-visible': entry.visible }">
+            <article x-show="entry.type === 'ai'">
+              <p class="echoes-emotion" x-show="entry.emotion" x-text="entry.emotion"></p>
+              <p class="echoes-ai-text" :class="{ 'echoes-streaming': entry.streaming }">
+                <span class="echoes-speaker" x-text="aiName + '：'"></span><span x-text="entry.text"></span>
+              </p>
+            </article>
+            <p x-show="entry.type === 'player'" class="echoes-player-text">
+              <span class="echoes-speaker echoes-speaker-player" x-text="playerName + '：'"></span><span x-text="entry.text"></span>
+            </p>
+            <aside x-show="entry.type === 'echo'" class="echoes-card" :class="{ 'is-visible': entry.visible }">
+              <p class="echoes-card-phrase" x-text="entry.phrase"></p>
+              <p class="echoes-card-deltas">
+                <template x-for="(d, i) in entry.deltas" :key="d.name">
+                  <span :class="d.delta > 0 ? 'echoes-delta-pos' : 'echoes-delta-neg'" x-text="d.text"></span><span x-show="i < entry.deltas.length - 1">　</span>
+                </template>
+              </p>
+            </aside>
+          </div>
+        </template>
+      </main>
+
+      <!-- Input -->
+      <footer class="echoes-footer">
+        <button type="button" class="echoes-help" @click="showHelp()">请帮帮我</button>
+        <div class="echoes-input-panel">
+          <form class="echoes-input-row" @submit.prevent="submitInput()">
+          <input
+            class="echoes-input"
+            type="text"
+            placeholder="说点什么…"
+            x-model="inputText"
+            :disabled="busy || gameOver"
+            autocomplete="off"
+          >
+          <button type="submit" class="echoes-send" :disabled="busy || gameOver || !inputText.trim()" aria-label="发送">›</button>
+        </form>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      applyTonePreset,
+      statPercent,
+      shouldShowEcho,
+      buildEchoCard,
+    } from '../echoes/echoes-core.js';
+
+    const DEMO_SCRIPT = {
+      title: '雨夜·废弃车站',
+      tone_preset: '从容',
+      briefing: '你与挚友因一段暧昧的传闻产生裂痕。对方压抑着情绪等你交代，每一句话都可能让关系进一步恶化，也可能找到转机。',
+      objective: '解释清楚你的立场，争取对方的理解与原谅。',
+      ai_character: {
+        name: '唐晶',
+        intro: '认识多年的挚友，性格直率、眼里容不得沙子。此刻她正在等你给出一个说得通的交代。',
+      },
+      player_character: {
+        name: '罗子君',
+        persona: '你在这段关系里处于被动一方，需要小心措辞，既要真诚又不能激化矛盾。',
+      },
+      stats: {
+        怀疑值: { initial: 55, min: 0, max: 100, label: '怀疑' },
+        愤怒值: { initial: 72, min: 0, max: 100, label: '愤怒' },
+      },
+      echo_phrases: {
+        愤怒值: {
+          down_medium: ['空气松弛了一瞬。', '紧绷的气氛稍稍缓和。', '她的呼吸平稳了一些。'],
+          down_large: ['重压忽然卸去一角。', '她似乎松了一口气。'],
+        },
+        怀疑值: {
+          up_medium: ['有什么东西在暗处移动。', '信任又薄了一层。'],
+        },
+      },
+      opening_line: '你少给我打太极。贺涵这半年为你做的事，你心里没数吗？',
+      opening_emotion: '（语气凌厉）',
+    };
+
+    const SCRIPTED_TURNS = [
+      {
+        player: '我知道你担心什么，但我和贺涵之间真的只是朋友。',
+        ai: '朋友？他半夜三点接你电话，这也叫朋友？',
+        emotion: '（冷笑）',
+        stat_changes: { 怀疑值: 6, 愤怒值: 2 },
+        hit_key_points: [],
+        stream: true,
+      },
+      {
+        player: '对不起，是我没有解释清楚。',
+        ai: '……',
+        emotion: '',
+        stat_changes: { 愤怒值: -8 },
+        hit_key_points: ['sincere_apology'],
+        stream: false,
+      },
+      {
+        player: '唐晶，我们的友情比这更重要，对吗？',
+        ai: '你先回答我，那天晚上你们在哪。',
+        emotion: '（压抑）',
+        stat_changes: { 怀疑值: 3 },
+        hit_key_points: [],
+        stream: true,
+      },
+    ];
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    window.echoesDemo = function () {
+      return {
+        script: DEMO_SCRIPT,
+        stats: {},
+        entries: [],
+        inputText: '',
+        busy: false,
+        gameOver: false,
+        turn: 1,
+        maxTurns: 15,
+        turnIndex: 0,
+        tonePreset: '从容',
+        entrySeq: 0,
+        scriptedTurns: SCRIPTED_TURNS,
+        briefing: '',
+        objective: '',
+        aiName: '',
+        playerName: '',
+        aiIntro: '',
+        playerPersona: '',
+
+        get scriptTitle() {
+          return this.script?.title || '未命名';
+        },
+
+        get turnHint() {
+          return `· 第 ${this.turn} / ${this.maxTurns} 轮`;
+        },
+
+        get statRows() {
+          const cfg = this.script.stats || {};
+          return Object.entries(cfg).map(([name, c]) => {
+            const value = this.stats[name] ?? c.initial;
+            return {
+              name,
+              label: c.label || name,
+              value,
+              percent: statPercent(value, c.min ?? 0, c.max ?? 100),
+            };
+          });
+        },
+
+        init() {
+          this.resetDemo();
+        },
+
+        resetDemo() {
+          this.stats = Object.fromEntries(
+            Object.entries(this.script.stats).map(([k, c]) => [k, c.initial])
+          );
+          this.entries = [];
+          this.inputText = '';
+          this.busy = false;
+          this.gameOver = false;
+          this.turn = 1;
+          this.turnIndex = 0;
+          this.entrySeq = 0;
+          this.tonePreset = this.script.tone_preset || '从容';
+          this.briefing = this.script.briefing || '';
+          this.objective = this.script.objective || '';
+          this.aiName = this.script.ai_character?.name || '';
+          this.playerName = this.script.player_character?.name || '';
+          this.aiIntro = this.script.ai_character?.intro || '';
+          this.playerPersona = this.script.player_character?.persona || '';
+          applyTonePreset(this.tonePreset);
+          this.pushOpening();
+        },
+
+        toggleTone() {
+          this.tonePreset = this.tonePreset === '从容' ? '明快' : '从容';
+          applyTonePreset(this.tonePreset);
+        },
+
+        nextId() {
+          this.entrySeq += 1;
+          return `e-${this.entrySeq}`;
+        },
+
+        async revealEntry(entry) {
+          await sleep(30);
+          entry.visible = true;
+          this.$nextTick(() => this.scrollFlow());
+        },
+
+        scrollFlow() {
+          const el = document.getElementById('echoes-flow');
+          if (el) el.scrollTop = el.scrollHeight;
+        },
+
+        pushOpening() {
+          const entry = {
+            id: this.nextId(),
+            type: 'ai',
+            text: this.script.opening_line,
+            emotion: this.script.opening_emotion || '',
+            visible: false,
+            streaming: false,
+          };
+          this.entries.push(entry);
+          this.revealEntry(entry);
+        },
+
+        async pushPlayer(text) {
+          const entry = { id: this.nextId(), type: 'player', text, visible: false };
+          this.entries.push(entry);
+          await this.revealEntry(entry);
+        },
+
+        async pushEcho(statChanges, hitKeyPoints) {
+          const card = buildEchoCard(statChanges, this.script.echo_phrases, hitKeyPoints);
+          if (!card) return;
+          const entry = {
+            id: this.nextId(),
+            type: 'echo',
+            phrase: card.phrase,
+            deltas: card.deltas.map((d) => ({
+              name: d.name,
+              delta: d.delta,
+              text: `${d.name} ${d.delta > 0 ? '+' : '−'}${Math.abs(d.delta)}`,
+            })),
+            visible: false,
+          };
+          this.entries.push(entry);
+          await sleep(80);
+          await this.revealEntry(entry);
+        },
+
+        applyStatChanges(changes) {
+          for (const [name, delta] of Object.entries(changes || {})) {
+            if (name in this.stats) {
+              const cfg = this.script.stats[name];
+              const min = cfg.min ?? 0;
+              const max = cfg.max ?? 100;
+              this.stats[name] = Math.max(min, Math.min(max, this.stats[name] + Number(delta)));
+            }
+          }
+        },
+
+        async streamAi(text, emotion) {
+          const entry = {
+            id: this.nextId(),
+            type: 'ai',
+            text: '',
+            emotion: emotion || '',
+            visible: false,
+            streaming: true,
+          };
+          this.entries.push(entry);
+          await this.revealEntry(entry);
+
+          for (const ch of text) {
+            entry.text += ch;
+            await sleep(28 + Math.random() * 22);
+            this.scrollFlow();
+          }
+          entry.streaming = false;
+        },
+
+        async pushAi(text, emotion) {
+          const entry = {
+            id: this.nextId(),
+            type: 'ai',
+            text,
+            emotion: emotion || '',
+            visible: false,
+            streaming: false,
+          };
+          this.entries.push(entry);
+          await this.revealEntry(entry);
+        },
+
+        async playTurn(turnData, playerOverride) {
+          if (this.busy || this.gameOver) return;
+          this.busy = true;
+
+          const playerText = playerOverride || turnData.player;
+          await this.pushPlayer(playerText);
+
+          const prevStats = { ...this.stats };
+          this.applyStatChanges(turnData.stat_changes);
+          this.turn += 1;
+
+          if (turnData.stream) {
+            await this.streamAi(turnData.ai, turnData.emotion);
+          } else {
+            await this.pushAi(turnData.ai, turnData.emotion);
+          }
+
+          if (shouldShowEcho(turnData.stat_changes, turnData.hit_key_points)) {
+            await this.pushEcho(turnData.stat_changes, turnData.hit_key_points);
+          }
+
+          this.busy = false;
+          return prevStats;
+        },
+
+        async submitInput() {
+          const text = this.inputText.trim();
+          if (!text || this.busy) return;
+
+          if (this.turnIndex < this.scriptedTurns.length) {
+            const turn = this.scriptedTurns[this.turnIndex];
+            this.inputText = '';
+            this.turnIndex += 1;
+            await this.playTurn(turn, text);
+          } else {
+            this.inputText = '';
+            await this.pushPlayer(text);
+            await this.pushAi('（Demo 结束 — 剧本回合已用完，可点「下一幕」或「重置」继续体验。）', '');
+          }
+        },
+
+        playNextScripted() {
+          if (this.turnIndex >= this.scriptedTurns.length || this.busy) return;
+          const turn = this.scriptedTurns[this.turnIndex];
+          this.turnIndex += 1;
+          this.playTurn(turn);
+        },
+
+        showHelp() {
+          alert('Concept Demo 说明：\n\n· 正式交互：在下方输入框打字发送\n· 顶部「Demo · 自动推进」：仅演示用，自动播放预设对话，正式版不会有此按钮');
+        },
+      };
+    };
+
+    document.addEventListener('alpine:init', () => {
+      window.Alpine.data('echoesDemo', window.echoesDemo);
+    });
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+</body>
+</html>

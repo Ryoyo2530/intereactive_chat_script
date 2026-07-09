@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from game import director, roleplay
+from game.core import director, roleplay
 
 
 def build_preview_session(script: dict[str, Any], player_message: str) -> dict[str, Any]:

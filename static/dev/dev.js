@@ -1248,7 +1248,7 @@ $('#sim-start-btn').addEventListener('click', async () => {
   }
   const llmPayload = getDevLLMPayload();
   if (!llmPayload) {
-    alert('请先在 LLM 配置中填写 API Base 和导演 Model');
+    alert('请先在 模型配置中填写 API Base 和导演 Model');
     switchWorkspace('llm');
     $('#dev-llm-panel').classList.remove('hidden');
     $('#dev-llm-chevron').textContent = '▼';

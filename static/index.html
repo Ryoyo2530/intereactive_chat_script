@@ -26,207 +26,244 @@
     }
   </script>
   <link rel="stylesheet" href="/style.css?v=6">
+  <link rel="stylesheet" href="/echoes/echoes.css?v=5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
-<body class="min-h-screen bg-gradient-to-br from-warm-50 via-rose-50 to-orange-50 text-stone-800">
+<body class="echoes-select-bg">
 
   <!-- Script Selection Screen -->
-  <div id="screen-select" class="min-h-screen flex flex-col items-center p-6 pt-10 sm:pt-16">
+  <div id="screen-select" class="min-h-screen flex flex-col items-center p-6 pt-10 sm:pt-16 max-w-md mx-auto w-full">
     <div class="text-center mb-8">
-      <h1 class="text-3xl sm:text-4xl font-bold text-warm-600 tracking-tight">入戏</h1>
+      <h1 class="echoes-select-title">入戏</h1>
       <div class="brand-slogan mt-3 flex items-center justify-center gap-3 sm:gap-4">
         <span class="brand-slogan-line" aria-hidden="true"></span>
         <p class="brand-slogan-text m-0">另一半台词</p>
         <span class="brand-slogan-line" aria-hidden="true"></span>
       </div>
-      <p class="mt-4 text-stone-500 text-sm sm:text-base">选择剧本，开启一段对话式剧情冒险</p>
+      <p class="echoes-select-sub mt-4">选择剧本，进入一段可被书写的对话</p>
     </div>
 
     <!-- Tabs -->
-    <div class="w-full max-w-md mb-6">
-      <div class="flex rounded-xl bg-white/70 p-1 border border-warm-100 shadow-sm">
-        <button data-tab="scripts" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition">可用剧本</button>
-        <button data-tab="tbc" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition">更多剧本</button>
-        <button data-tab="settings" class="tab-btn flex-1 rounded-lg px-3 py-2 text-sm font-medium transition">LLM 配置</button>
-      </div>
+    <div class="w-full mb-6 echoes-tabs">
+      <button data-tab="scripts" class="echoes-tab-btn tab-btn is-active">可用剧本</button>
+      <button data-tab="tbc" class="echoes-tab-btn tab-btn">更多剧本</button>
+      <button data-tab="settings" class="echoes-tab-btn tab-btn">模型配置</button>
     </div>
 
     <!-- Tab: Available Scripts -->
-    <div id="tab-scripts" class="tab-panel w-full max-w-md space-y-3">
-      <div id="config-warning" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        请先完成 <button type="button" data-tab-link="settings" class="font-semibold underline">LLM 配置</button> 后再开始游戏
+    <div id="tab-scripts" class="tab-panel w-full space-y-3">
+      <div id="config-warning" class="hidden echoes-warning">
+        请先完成 <button type="button" data-tab-link="settings" class="underline">模型配置</button> 后再开始游戏
       </div>
       <div id="script-list">
-        <div class="animate-pulse bg-white/60 rounded-2xl h-24 shadow-sm"></div>
+        <div style="height:6rem;border:1px solid var(--echo-border);opacity:0.5"></div>
       </div>
     </div>
 
     <!-- Tab: More Scripts TBC -->
-    <div id="tab-tbc" class="tab-panel hidden w-full max-w-md space-y-4">
-      <div class="rounded-2xl border border-dashed border-warm-200 bg-white/50 p-8 text-center">
-        <p class="text-4xl mb-3">🎭</p>
-        <h3 class="text-lg font-semibold text-warm-600">更多剧本 · TBC</h3>
-        <p class="mt-2 text-sm text-stone-500 leading-relaxed">更多精彩剧情正在筹备中，敬请期待。</p>
-      </div>
-      <div class="rounded-2xl bg-white/40 border border-warm-100 p-5 opacity-60 cursor-not-allowed">
-        <div class="flex items-center justify-between">
-          <h3 class="font-medium text-stone-500">甄嬛传 · 滴血认亲篇</h3>
-          <span class="text-xs bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">TBC</span>
-        </div>
-        <p class="mt-2 text-sm text-stone-400">在皇后与祺嫔的夹击下，为自己辩白…</p>
-      </div>
-      <div class="rounded-2xl bg-white/40 border border-warm-100 p-5 opacity-60 cursor-not-allowed">
-        <div class="flex items-center justify-between">
-          <h3 class="font-medium text-stone-500">黑暗荣耀 · 复仇对质</h3>
-          <span class="text-xs bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">TBC</span>
-        </div>
-        <p class="mt-2 text-sm text-stone-400">与朴妍珍正面对峙，揭开真相…</p>
+    <div id="tab-tbc" class="tab-panel hidden w-full space-y-4">
+      <div class="echoes-form-panel text-center">
+        <h3 class="echoes-script-card-title">更多剧本 · 筹备中</h3>
+        <p class="echoes-select-sub mt-2">更多精彩剧情正在筹备中，敬请期待。</p>
       </div>
     </div>
 
     <!-- Tab: LLM Settings -->
-    <div id="tab-settings" class="tab-panel hidden w-full max-w-md">
-      <form id="llm-config-form" class="rounded-2xl bg-white/80 border border-warm-100 shadow-sm p-5 space-y-4">
+    <div id="tab-settings" class="tab-panel hidden w-full">
+      <form id="llm-config-form" class="echoes-form-panel space-y-1">
         <div>
-          <label class="block text-xs font-medium text-stone-500 mb-1.5">Provider</label>
-          <select id="cfg-provider" class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+          <label>Provider</label>
+          <select id="cfg-provider">
             <option value="doubao">豆包 / 火山引擎</option>
             <option value="openai">OpenAI</option>
             <option value="custom">自定义</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-medium text-stone-500 mb-1.5">API Base URL</label>
-          <input id="cfg-api-base" type="url" placeholder="https://ark.cn-beijing.volces.com/api/v3"
-            class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+          <label>API Base URL</label>
+          <input id="cfg-api-base" type="url" placeholder="https://ark.cn-beijing.volces.com/api/v3">
         </div>
         <div>
-          <label class="block text-xs font-medium text-stone-500 mb-1.5">API Key</label>
-          <input id="cfg-api-key" type="password" placeholder="必填"
-            class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+          <label>API Key</label>
+          <input id="cfg-api-key" type="password" placeholder="必填">
         </div>
         <div>
-          <label class="block text-xs font-medium text-stone-500 mb-1.5">Model</label>
-          <input id="cfg-model" type="text" placeholder="doubao-seed-2-0-lite-260428"
-            class="w-full rounded-xl border border-warm-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-warm-400/50">
+          <label>Model</label>
+          <input id="cfg-model" type="text" placeholder="doubao-seed-2-0-lite-260428">
         </div>
-        <div id="cfg-status" class="hidden rounded-xl px-3 py-2 text-xs"></div>
+        <div id="cfg-status" class="hidden" style="font-size:0.75rem;margin-bottom:0.75rem"></div>
         <div class="flex gap-2 pt-1">
-          <button type="button" id="cfg-test-btn"
-            class="flex-1 rounded-xl border border-warm-200 bg-white hover:bg-warm-50 text-warm-600 px-4 py-2.5 text-sm font-medium transition">
-            测试连接
-          </button>
-          <button type="submit"
-            class="flex-1 rounded-xl bg-warm-500 hover:bg-warm-600 text-white px-4 py-2.5 text-sm font-medium transition shadow-sm">
-            保存配置
-          </button>
+          <button type="button" id="cfg-test-btn" class="echoes-btn flex-1">测试连接</button>
+          <button type="submit" class="echoes-btn echoes-btn-primary flex-1">保存配置</button>
         </div>
-        <p class="text-xs text-stone-400 leading-relaxed">配置保存在浏览器本地。部署到 Render 时也可通过环境变量 <code class="text-stone-500">LLM_API_KEY</code> 等注入，无需在此填写。</p>
+        <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.75rem">温馨提示：请用你自己的 API Key，不要泄露给他人哦。</p>
       </form>
     </div>
   </div>
 
-  <!-- Game Screen v1.0 -->
-  <div id="screen-game" class="hidden game-shell">
-    <div class="game-card">
-      <header class="game-header">
-        <div class="game-header-top">
-          <div class="game-header-info">
-            <h2 id="game-title"></h2>
-            <p id="game-objective"></p>
+  <!-- Game Screen — Echoes reading flow (v1.3) -->
+  <div id="screen-game" class="hidden echoes-shell" x-data="echoesGame" x-init="init()">
+    <div class="echoes-layout">
+
+      <header class="echoes-chapter">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem">
+          <div>
+            <h2 class="echoes-chapter-title">
+              <span x-text="scriptTitle"></span>
+              <span class="echoes-turn-hint" x-text="turnHint"></span>
+            </h2>
+            <div class="echoes-context" x-show="!contextCollapsed">
+              <p class="echoes-briefing" x-text="briefing"></p>
+              <p class="echoes-objective" x-show="objective">目标：<span x-text="objective"></span></p>
+              <div class="echoes-characters">
+                <div class="echoes-char-card">
+                  <span class="echoes-char-role">对方</span>
+                  <span class="echoes-char-name" x-text="aiName"></span>
+                  <p class="echoes-char-intro" x-text="aiIntro"></p>
+                </div>
+                <div class="echoes-char-card">
+                  <span class="echoes-char-role">你</span>
+                  <span class="echoes-char-name" x-text="playerName"></span>
+                  <p class="echoes-char-intro" x-text="playerPersona"></p>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="echoes-context-toggle" @click="contextCollapsed = !contextCollapsed" x-text="contextCollapsed ? '展开背景与角色' : '收起背景与角色'"></button>
+            <p class="echoes-context-summary" x-show="contextCollapsed && objective" x-text="'目标：' + objective"></p>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span id="turn-indicator"></span>
-            <button type="button" id="exit-game-btn" title="退出剧情">退出</button>
-          </div>
+          <button type="button" @click="exitGame()" style="border:none;background:none;font-family:inherit;font-size:0.6875rem;color:var(--echo-muted);cursor:pointer;letter-spacing:normal;padding:0.25rem 0;white-space:nowrap">退出</button>
         </div>
-        <div id="stats-bar" class="stats-bar"></div>
       </header>
 
-      <main id="chat-area" class="chat-area"></main>
+      <section class="echoes-world-state" aria-label="世界状态">
+        <template x-for="stat in statRows" :key="stat.name">
+          <div class="echoes-stat-row">
+            <span class="echoes-stat-name" x-text="stat.label"></span>
+            <div class="echoes-stat-track">
+              <span class="echoes-stat-dot" :style="`left: ${stat.percent}%`"></span>
+            </div>
+            <span class="echoes-stat-value" x-text="stat.value"></span>
+          </div>
+        </template>
+      </section>
 
-      <footer id="input-area" class="game-footer">
-        <button type="button" id="help-btn" class="help-btn">ⓘ 请帮帮我</button>
-        <form id="message-form" class="message-form">
-          <input id="message-input" type="text" placeholder="说点什么…" autocomplete="off">
-          <button type="submit" id="send-btn" class="send-btn" aria-label="发送">➤</button>
-        </form>
+      <main class="echoes-flow" id="echoes-flow" aria-live="polite">
+        <template x-for="entry in entries" :key="entry.id">
+          <div class="echoes-entry">
+            <template x-if="entry.type === 'ai'">
+              <article>
+                <p class="echoes-emotion" x-show="entry.emotion" x-text="entry.emotion"></p>
+                <p class="echoes-ai-text" :class="{ 'echoes-streaming': entry.streaming }">
+                  <span class="echoes-speaker" x-text="aiName + '：'"></span><span x-text="entry.text"></span>
+                </p>
+              </article>
+            </template>
+            <template x-if="entry.type === 'player'">
+              <p class="echoes-player-text">
+                <span class="echoes-speaker echoes-speaker-player" x-text="playerName + '：'"></span><span x-text="entry.text"></span>
+              </p>
+            </template>
+            <template x-if="entry.type === 'echo'">
+              <aside class="echoes-card">
+                <p class="echoes-card-phrase" x-text="entry.phrase"></p>
+                <p class="echoes-card-deltas">
+                  <template x-for="(d, i) in entry.deltas" :key="d.name">
+                    <span :class="d.delta > 0 ? 'echoes-delta-pos' : 'echoes-delta-neg'" x-text="d.text"></span><span x-show="i < entry.deltas.length - 1">　</span>
+                  </template>
+                </p>
+              </aside>
+            </template>
+          </div>
+        </template>
+        <div x-show="waitingForReply" x-cloak class="echoes-pending" aria-label="对方正在回应">
+          <span class="echoes-pending-dot"></span>
+          <span class="echoes-pending-dot"></span>
+          <span class="echoes-pending-dot"></span>
+        </div>
+      </main>
+
+      <footer class="echoes-footer" id="echoes-input-area">
+        <button type="button" class="echoes-help" @click="showHelp()">请帮帮我</button>
+        <div class="echoes-input-panel">
+          <form class="echoes-input-row" @submit.prevent="submitInput()">
+            <input class="echoes-input" type="text" placeholder="说点什么…" x-model="inputText" :disabled="busy || gameOver" autocomplete="off">
+            <button type="submit" class="echoes-send" :disabled="busy || gameOver || !inputText.trim()" aria-label="发送">›</button>
+          </form>
+        </div>
       </footer>
+
     </div>
   </div>
 
   <!-- Script Briefing Modal -->
-  <div id="briefing-overlay" class="hidden ending-overlay" style="z-index:60">
-    <div class="briefing-modal ending-card" style="max-width:400px;text-align:left;padding:0;overflow:hidden;">
+  <div id="briefing-overlay" class="hidden echoes-briefing-overlay">
+    <div class="echoes-briefing-card">
 
-      <!-- Step indicator -->
-      <div class="briefing-steps">
-        <span class="briefing-step active" data-step="1">入场须知</span>
-        <span class="briefing-step-sep">›</span>
-        <span class="briefing-step" data-step="2">人物介绍</span>
+      <div class="echoes-briefing-steps">
+        <span class="echoes-briefing-step briefing-step active" data-step="1">入场须知</span>
+        <span>›</span>
+        <span class="echoes-briefing-step briefing-step" data-step="2">人物介绍</span>
       </div>
 
-      <!-- Step 1: Briefing -->
-      <div id="briefing-step-1" class="briefing-pane">
-        <p id="briefing-script-title" class="briefing-script-title"></p>
-        <p id="briefing-text" class="briefing-body"></p>
-        <div class="briefing-objective-block">
-          <span class="briefing-objective-label">你的任务</span>
+      <div id="briefing-step-1" class="echoes-briefing-pane briefing-pane">
+        <p id="briefing-script-title" class="echoes-briefing-script-title"></p>
+        <p id="briefing-text" class="echoes-briefing-body"></p>
+        <div class="echoes-briefing-objective-block">
+          <span class="echoes-briefing-objective-label">你的任务</span>
           <p id="briefing-objective"></p>
         </div>
-        <div class="briefing-actions">
-          <button id="briefing-cancel-btn" class="btn-neutral" style="flex:1">取消</button>
-          <button id="briefing-next-btn" class="briefing-primary-btn" style="flex:2">了解了，继续 →</button>
+        <div class="echoes-briefing-actions">
+          <button id="briefing-cancel-btn" class="echoes-btn" style="flex:1">取消</button>
+          <button id="briefing-next-btn" class="echoes-btn echoes-btn-primary" style="flex:2">了解了，继续 →</button>
         </div>
       </div>
 
-      <!-- Step 2: Character intro + optional player setup -->
-      <div id="briefing-step-2" class="briefing-pane hidden">
-        <p class="briefing-section-label">对方是谁</p>
-        <div class="briefing-char-card">
-          <span id="briefing-ai-name" class="briefing-char-name"></span>
-          <p id="briefing-ai-intro" class="briefing-char-intro"></p>
+      <div id="briefing-step-2" class="echoes-briefing-pane briefing-pane hidden">
+        <p class="echoes-briefing-section-label">对方是谁</p>
+        <div class="echoes-briefing-char-card">
+          <span id="briefing-ai-name" class="echoes-briefing-char-name"></span>
+          <p id="briefing-ai-intro" class="echoes-briefing-char-intro"></p>
         </div>
 
-        <!-- AI character customization: only shown for 你也一定遇到过 -->
         <div id="briefing-ai-setup" class="hidden">
-          <p class="briefing-section-label" style="margin-top:16px">给 TA 取个名字（可选）</p>
-          <div class="briefing-field">
-            <label class="briefing-label">TA 的名字</label>
-            <input id="briefing-ai-name-input" type="text" class="briefing-input" placeholder="默认名字" maxlength="10">
+          <p class="echoes-briefing-section-label" style="margin-top:16px">给 TA 取个名字（可选）</p>
+          <div class="echoes-briefing-field">
+            <label class="echoes-briefing-section-label">TA 的名字</label>
+            <input id="briefing-ai-name-input" type="text" class="echoes-briefing-input" placeholder="默认名字" maxlength="10">
           </div>
-          <div class="briefing-field">
-            <label class="briefing-label">TA 的性格（会影响游戏体验）</label>
-            <textarea id="briefing-ai-persona" class="briefing-input briefing-textarea" placeholder="不填则使用默认设定" maxlength="100" rows="2"></textarea>
+          <div class="echoes-briefing-field">
+            <label class="echoes-briefing-section-label">TA 的性格（会影响游戏体验）</label>
+            <textarea id="briefing-ai-persona" class="echoes-briefing-input echoes-briefing-textarea" placeholder="不填则使用默认设定" maxlength="100" rows="2"></textarea>
           </div>
         </div>
 
-        <div class="briefing-actions">
-          <button id="briefing-back-btn" class="btn-neutral" style="flex:1">← 返回</button>
-          <button id="briefing-start-btn" class="briefing-primary-btn" style="flex:2">开始入戏</button>
+        <div class="echoes-briefing-actions">
+          <button id="briefing-back-btn" class="echoes-btn" style="flex:1">← 返回</button>
+          <button id="briefing-start-btn" class="echoes-btn echoes-btn-primary" style="flex:2">开始入戏</button>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- Ending Overlay v1.0 -->
-  <div id="ending-overlay" class="hidden ending-overlay">
-    <div class="ending-card">
-      <div id="ending-icon-wrap" class="ending-icon-wrap"></div>
-      <p id="ending-meta" class="ending-meta"></p>
-      <h3 id="ending-title" class="ending-title"></h3>
-      <p id="ending-text" class="ending-text"></p>
-      <div id="ending-stats" class="ending-stats"></div>
-      <div class="ending-actions">
-        <button id="replay-btn" class="btn-neutral">再玩一次</button>
-        <button id="change-script-btn" class="btn-neutral">换一个剧本</button>
+  <!-- Ending Overlay — paper style -->
+  <div id="ending-overlay" class="hidden echoes-ending-overlay">
+    <div class="echoes-ending-card">
+      <p id="ending-meta" class="echoes-ending-meta"></p>
+      <h3 id="ending-title" class="echoes-ending-title"></h3>
+      <p id="ending-text" class="echoes-ending-text"></p>
+      <div id="ending-stats" class="echoes-ending-stats"></div>
+      <div class="echoes-ending-actions">
+        <button id="replay-btn" class="echoes-ending-btn">再玩一次</button>
+        <button id="change-script-btn" class="echoes-ending-btn">换一个剧本</button>
       </div>
     </div>
   </div>
 
-  <script src="/app.js?v=7"></script>
+  <script type="module" src="/echoes/echoes-app.js?v=3"></script>
+  <script defer src="/vendor/alpine.min.js"></script>
+  <script defer src="/app.js?v=12"></script>
 </body>
 </html>
