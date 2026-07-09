@@ -175,6 +175,12 @@
                 </p>
               </aside>
             </template>
+            <template x-if="entry.type === 'hint'">
+              <aside class="echoes-hint-card">
+                <p class="echoes-hint-label">提示</p>
+                <p class="echoes-hint-text" x-text="entry.text"></p>
+              </aside>
+            </template>
           </div>
         </template>
         <div x-show="waitingForReply" x-cloak class="echoes-pending" aria-label="对方正在回应">
@@ -185,7 +191,9 @@
       </main>
 
       <footer class="echoes-footer" id="echoes-input-area">
-        <button type="button" class="echoes-help" @click="showHelp()">请帮帮我</button>
+        <button type="button" class="echoes-help" @click="showHelp()" :disabled="busy || gameOver || hintBusy || hintsRemaining <= 0">
+          <span x-text="hintsRemaining > 0 ? `请帮帮我（剩 ${hintsRemaining} 次）` : '请帮帮我'"></span>
+        </button>
         <div class="echoes-input-panel">
           <form class="echoes-input-row" @submit.prevent="submitInput()">
             <input class="echoes-input" type="text" placeholder="说点什么…" x-model="inputText" :disabled="busy || gameOver" autocomplete="off">

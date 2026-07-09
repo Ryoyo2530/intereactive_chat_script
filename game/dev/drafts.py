@@ -21,6 +21,8 @@ PROMPT_TEMPLATE_KEYS = [
     "director/user.txt",
     "roleplay/system.txt",
     "roleplay/user.txt",
+    "hint/system.txt",
+    "hint/user.txt",
 ]
 
 

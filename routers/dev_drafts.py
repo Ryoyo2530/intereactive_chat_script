@@ -10,9 +10,10 @@ router = APIRouter()
 @router.get("/api/dev/drafts/scripts/{script_id}", dependencies=[Depends(dev_auth.require_dev_auth)])
 def dev_get_script_draft(script_id: str):
     draft = dev_drafts.load_script_draft(script_id)
-    if not draft:
-        raise HTTPException(status_code=404, detail="No script draft")
-    return {"draft": draft, "has_draft": True}
+    return {
+        "draft": draft,
+        "has_draft": draft is not None,
+    }
 
 
 @router.put("/api/dev/drafts/scripts/{script_id}", dependencies=[Depends(dev_auth.require_dev_auth)])

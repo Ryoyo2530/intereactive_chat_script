@@ -6,6 +6,7 @@ import copy
 from typing import Any
 
 from game.core import director, roleplay
+from game.prompts import manager as prompt_manager
 
 
 def build_preview_session(script: dict[str, Any], player_message: str) -> dict[str, Any]:
@@ -50,8 +51,24 @@ def preview_prompts(
                 out[msg["role"]] = msg["content"]
         return out
 
+    overrides = prompt_overrides
+    hint_system = prompt_manager.render("hint/system.txt", overrides=overrides)
+    hint_user = prompt_manager.render(
+        "hint/user.txt",
+        overrides=overrides,
+        script_title=script.get("title", ""),
+        objective=script.get("objective", ""),
+        current_turn="1",
+        max_turns=str(script.get("max_turns", 15)),
+        current_stats=prompt_manager.format_stats(session["stats"]),
+        conversation_history=prompt_manager.format_history(session["history"]),
+        pending_key_points=prompt_manager.format_pending_key_points(script, []),
+        pending_pitfalls=prompt_manager.format_pending_pitfalls(script, []),
+    )
+
     return {
         "director": _split(director_messages),
         "roleplay": _split(roleplay_messages),
+        "hint": {"system": hint_system, "user": hint_user},
         "player_message": player_message,
     }

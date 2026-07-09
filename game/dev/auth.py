@@ -1,15 +1,23 @@
-"""Simple single-user dev mode authentication via password + session token."""
+"""Simple single-user dev mode authentication via password + signed session token."""
 
+import hashlib
+import hmac
 import os
 import secrets
+import time
 
 from fastapi import Cookie, HTTPException
 
-_tokens: set[str] = set()
+TOKEN_TTL_SECONDS = 7 * 24 * 3600
 
 
 def _password() -> str | None:
     return os.environ.get("DEV_MODE_PASSWORD") or None
+
+
+def _secret() -> bytes:
+    pw = _password() or ""
+    return hashlib.sha256(f"ruxi-dev:{pw}".encode()).digest()
 
 
 def is_enabled() -> bool:
@@ -24,19 +32,33 @@ def check_password(pw: str) -> bool:
 
 
 def create_token() -> str:
-    token = secrets.token_hex(32)
-    _tokens.add(token)
-    return token
+    nonce = secrets.token_hex(16)
+    ts = int(time.time())
+    payload = f"{nonce}.{ts}"
+    sig = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
 
 
 def validate_token(token: str | None) -> bool:
-    if not token:
+    if not token or not is_enabled():
         return False
-    return token in _tokens
+    parts = token.split(".")
+    if len(parts) != 3:
+        return False
+    _nonce, ts_str, sig = parts
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return False
+    if time.time() - ts > TOKEN_TTL_SECONDS:
+        return False
+    payload = f"{_nonce}.{ts_str}"
+    expected = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
+    return secrets.compare_digest(sig, expected)
 
 
 def revoke_all() -> None:
-    _tokens.clear()
+    """No-op: tokens are stateless and expire by TTL."""
 
 
 def require_dev_auth(dev_token: str | None = Cookie(default=None)):

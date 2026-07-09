@@ -40,6 +40,10 @@ class MessageRequest(BaseModel):
     message: str
 
 
+class HintRequest(BaseModel):
+    session_id: str
+
+
 @router.get("/favicon.ico")
 def favicon():
     return Response(content=FAVICON_SVG, media_type="image/svg+xml")
@@ -135,6 +139,16 @@ def send_message_stream(body: MessageRequest):
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/api/session/hint")
+def request_hint(body: HintRequest):
+    try:
+        return engine.get_hint(body.session_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:

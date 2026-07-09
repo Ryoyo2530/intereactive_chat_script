@@ -89,6 +89,8 @@ const PROMPT_KEYS = [
   { key: 'director/user.txt', label: '导演 · user', agent: '导演' },
   { key: 'roleplay/system.txt', label: '演员 · system', agent: '演员' },
   { key: 'roleplay/user.txt', label: '演员 · user', agent: '演员' },
+  { key: 'hint/system.txt', label: '提示 · system', agent: '提示' },
+  { key: 'hint/user.txt', label: '提示 · user', agent: '提示' },
 ];
 
 const $ = (sel) => document.querySelector(sel);
@@ -678,7 +680,7 @@ async function resolveSimScriptPayload(scriptId) {
     const draftRes = await fetch(`/api/dev/drafts/scripts/${scriptId}`, { credentials: 'same-origin' });
     if (draftRes.ok) {
       const data = await draftRes.json();
-      if (data.draft) return data.draft;
+      if (data.has_draft && data.draft) return data.draft;
     }
   } catch { /* ignore */ }
   if (state.activeId === scriptId) {
@@ -815,7 +817,12 @@ async function refreshScriptDraftStatus(id) {
   }
   try {
     const res = await fetch(`/api/dev/drafts/scripts/${id}`, { credentials: 'same-origin' });
-    state.scriptServerDraftSaved = res.ok;
+    if (res.ok) {
+      const data = await res.json();
+      state.scriptServerDraftSaved = Boolean(data.has_draft);
+    } else {
+      state.scriptServerDraftSaved = false;
+    }
   } catch {
     state.scriptServerDraftSaved = false;
   }
@@ -1476,7 +1483,7 @@ async function resolvePreviewScript() {
       const draftRes = await fetch(`/api/dev/drafts/scripts/${selId}`, { credentials: 'same-origin' });
       if (draftRes.ok) {
         const data = await draftRes.json();
-        return data.draft;
+        if (data.has_draft && data.draft) return data.draft;
       }
     } catch { /* fall through */ }
     const editorScript = parseEditorJson();

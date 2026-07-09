@@ -45,6 +45,8 @@ export function echoesGame() {
     aiIntro: '',
     playerPersona: '',
     contextCollapsed: false,
+    hintsRemaining: 3,
+    hintBusy: false,
 
     get scriptTitle() {
       return this.script?.title || '未命名';
@@ -95,6 +97,8 @@ export function echoesGame() {
       this.aiIntro = '';
       this.playerPersona = '';
       this.contextCollapsed = false;
+      this.hintsRemaining = 3;
+      this.hintBusy = false;
     },
 
     applyScriptDetail(detail) {
@@ -133,6 +137,8 @@ export function echoesGame() {
         await this.loadScriptDetail(data.script.id);
       }
 
+      this.hintsRemaining = data.script?.max_hints ?? 3;
+      this.hintBusy = false;
       this.contextCollapsed = false;
 
       if (data.opening_line) {
@@ -317,7 +323,33 @@ export function echoesGame() {
     },
 
     showHelp() {
-      alert('提示功能即将上线，敬请期待。');
+      this.requestHint();
+    },
+
+    async requestHint() {
+      if (!this.sessionId || this.gameOver || this.hintBusy || this.hintsRemaining <= 0) {
+        if (this.hintsRemaining <= 0) {
+          this.appendEntry({ type: 'hint', text: '本局提示次数已用完。' });
+        }
+        return;
+      }
+      this.hintBusy = true;
+      try {
+        const res = await fetch('/api/session/hint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: this.sessionId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || '提示请求失败');
+        this.hintsRemaining = data.hints_remaining ?? 0;
+        this.appendEntry({ type: 'hint', text: data.hint });
+      } catch (err) {
+        console.error(err);
+        this.appendEntry({ type: 'hint', text: err.message || '暂时无法获取提示，请稍后再试。' });
+      } finally {
+        this.hintBusy = false;
+      }
     },
   };
 }

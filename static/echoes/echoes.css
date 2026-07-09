@@ -416,6 +416,32 @@
   color: var(--echo-ink);
 }
 
+.echoes-help:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.echoes-hint-card {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 2px solid var(--echo-accent);
+  background: rgba(75, 99, 85, 0.06);
+}
+
+.echoes-hint-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.6875rem;
+  color: var(--echo-accent);
+  letter-spacing: 0.08em;
+}
+
+.echoes-hint-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--echo-ink);
+  line-height: 1.7;
+}
+
 /* ── Demo chrome ── */
 
 .echoes-demo-bar {

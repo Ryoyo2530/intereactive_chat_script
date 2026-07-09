@@ -346,6 +346,7 @@ def start_game(
             "echo_phrases": script.get("echo_phrases"),
             "tone_preset": script.get("tone_preset", "从容"),
             "chapter_title": script.get("chapter_title", script["title"]),
+            "max_hints": script.get("max_hints", 3),
         },
         "opening_line": opening,
         "stats": game_session["stats"],
@@ -530,3 +531,60 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
         hit_key_points=hit_kp, hit_pitfalls=hit_pf,
     )
     yield {"type": "done", **response}
+
+
+def get_hint(session_id: str) -> dict[str, Any]:
+    game_session = session_store.get_session(session_id)
+    if not game_session:
+        raise ValueError("Session not found")
+    if game_session["game_over"]:
+        raise ValueError("对局已结束")
+
+    max_hints = game_session["script"].get("max_hints", 3)
+    hints_used = game_session.get("hints_used", 0)
+    if hints_used >= max_hints:
+        raise ValueError("本局提示次数已用完")
+
+    script = game_session["script"]
+    cfg = _session_llm_config(game_session)
+    overrides = game_session.get("prompt_overrides")
+    system_prompt = prompt_manager.render("hint/system.txt", overrides=overrides)
+    user_prompt = prompt_manager.render(
+        "hint/user.txt",
+        overrides=overrides,
+        script_title=script["title"],
+        objective=script.get("objective", ""),
+        current_turn=str(game_session["turn"]),
+        max_turns=str(script.get("max_turns", 15)),
+        current_stats=prompt_manager.format_stats(game_session["stats"]),
+        conversation_history=prompt_manager.format_history(game_session["history"][-6:]),
+        pending_key_points=prompt_manager.format_pending_key_points(
+            script, game_session.get("hit_key_point_ids", [])
+        ),
+        pending_pitfalls=prompt_manager.format_pending_pitfalls(
+            script, game_session.get("hit_pitfall_ids", [])
+        ),
+    )
+
+    try:
+        hint_text = llm_client.chat_completion(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            cfg,
+            temperature=0.6,
+        ).strip()
+    except Exception as exc:
+        logger.warning("[hint] LLM call failed: %s", exc)
+        raise ValueError("暂时无法生成提示，请稍后再试") from exc
+
+    if not hint_text:
+        hint_text = "试着从对方最在意的情绪入手，用真诚、具体的话回应。"
+
+    game_session["hints_used"] = hints_used + 1
+    return {
+        "hint": hint_text,
+        "hints_used": game_session["hints_used"],
+        "hints_remaining": max_hints - game_session["hints_used"],
+    }

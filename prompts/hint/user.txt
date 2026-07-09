@@ -1,0 +1,14 @@
+剧本：{{script_title}}
+玩家目标：{{objective}}
+当前轮次：{{current_turn}} / {{max_turns}}
+当前数值：
+{{current_stats}}
+
+最近对话：
+{{conversation_history}}
+
+尚未命中的关键点（仅供你判断方向，不要在提示中逐条列出）：
+{{pending_key_points}}
+
+尚未触发的减分点（可提醒玩家避开类似方向）：
+{{pending_pitfalls}}

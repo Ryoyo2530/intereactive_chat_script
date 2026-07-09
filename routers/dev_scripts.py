@@ -35,7 +35,14 @@ def dev_login(body: DevLoginRequest):
         raise HTTPException(status_code=401, detail="密码错误")
     token = dev_auth.create_token()
     response = JSONResponse({"ok": True})
-    response.set_cookie("dev_token", token, httponly=True, samesite="strict")
+    response.set_cookie(
+        "dev_token",
+        token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        max_age=dev_auth.TOKEN_TTL_SECONDS,
+    )
     return response
 
 
