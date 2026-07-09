@@ -8,6 +8,24 @@
 
 ---
 
+## 界面预览（v1.3 · Echoes 阅读流）
+
+v1.3 起，对局页从「聊天气泡」改为 **Echoes 阅读流**：纸感排版、无气泡、角色名前缀、玩家竖线区分、数值变化时浮现 Echo 卡片。
+
+![Echoes 对局页示意](docs/%20v1.0/ui_screenshots/echoes_gameplay_v1.3.png)
+
+| 区域 | 说明 |
+|------|------|
+| 章节头 | 剧本标题 + 轮次；可展开/收起背景与角色卡 |
+| 世界状态 | 数值名 + 轨道圆点 + 数字（如「怀疑值 60」） |
+| 阅读流 | `唐晶：` / `罗子君：` 前缀对白；情绪标签（如「戒备」）在台词上方 |
+| Echo 卡片 | 数值 \|Δ\| ≥ 5 或命中关键点时出现；文案来自模板池（非 LLM） |
+| 输入区 | 底部独立面板，与正文阅读流视觉分离 |
+
+静态 Concept Demo（假数据、不接后端）：http://localhost:8000/concept/echoes_demo.html
+
+---
+
 ## 玩法简介
 
 1. **选剧本** — 从「影视热梗」或「你也一定遇到过」两大分类中挑一个场景
@@ -114,13 +132,14 @@ LLM_MODEL=model-id
 
 ## 技术架构
 
-- **后端** — FastAPI + Python；玩家消息支持 SSE 流式输出
-- **前端** — 原生 HTML / CSS / JS，无框架依赖
+- **后端** — FastAPI + Python；路由拆分至 `routers/`；玩家消息支持 SSE 流式输出
+- **前端** — 原生 HTML / CSS / JS + **Alpine.js**（本地托管）；对局页采用 Echoes 阅读流（`static/echoes/`）
 - **双 LLM Agent**
   - **Director** — 判定关键点/减分点、数值变化、结构化 reaction、胜负
   - **Roleplay** — 生成角色台词与 `emotion_tag`（受剧本情绪词表约束）
-- **剧本** — `scripts/fanfic/`、`scripts/original/` 下的 JSON；运行时经 `script_repository` 加载，dev 保存后即时生效
-- **Prompt** — `prompts/director/`、`prompts/roleplay/` 模板，由 `prompt_manager` 渲染
+- **Echo 卡片文案** — 前端模板池（`echo_phrases` 可选字段 + 通用兜底），不由 LLM 生成
+- **剧本** — `scripts/fanfic/`、`scripts/original/` 下的 JSON；运行时经 `game/content/script_repository` 加载，dev 保存后即时生效
+- **Prompt** — `prompts/director/`、`prompts/roleplay/` 模板，由 `game/prompts/manager` 渲染
 
 ---
 
@@ -128,26 +147,38 @@ LLM_MODEL=model-id
 
 ```
 intereactive_chat_script/
-├── main.py                      # FastAPI 入口：玩家 API + /dev API + 静态资源挂载
+├── main.py                      # FastAPI 入口：挂载 routers + 静态资源
 ├── requirements.txt
 ├── render.yaml                  # Render 部署配置
 ├── .env.example                 # 环境变量模板（LLM_*、DEV_MODE_PASSWORD）
 │
+├── routers/                     # API 路由（由 main.py 挂载）
+│   ├── player.py                # 玩家端：剧本、对局、首页
+│   ├── dev_scripts.py           # dev：登录、剧本 CRUD、导入导出
+│   ├── dev_drafts.py            # dev：草稿管理、对比
+│   ├── dev_prompts.py           # dev：Prompt 草稿/发布/预览
+│   └── dev_simulate.py          # dev：试玩 start/message
+│
 ├── game/                        # 后端核心逻辑
-│   ├── engine.py                # 对局主流程：回合、胜负、规则兜底、dev 调试入口
-│   ├── director.py              # 导演 Agent：关键点判定、stat_changes、reaction
-│   ├── roleplay.py              # 演员 Agent：台词生成、emotion_tag 校验
-│   ├── llm_client.py            # LLM 调用（含 dev 流式调试、JSON 解析）
-│   ├── llm_config.py            # Provider / API Key / 分 Agent 模型解析
-│   ├── prompt_manager.py        # Prompt 模板加载与 {{变量}} 渲染
-│   ├── prompt_preview.py        # dev：用剧本样例渲染完整 Prompt 预览
-│   ├── session.py               # 内存 Session 存储
-│   ├── script_repository.py     # 剧本 JSON 读写与缓存
-│   ├── validator.py             # 剧本 schema 静态校验
-│   ├── dev_drafts.py            # 剧本 / Prompt 草稿缓冲区（dev_drafts/）
-│   ├── dev_auth.py              # 开发者模式密码与 cookie token
-│   ├── path_calculator.py       # 假设路径：静态数值推演（无 LLM）
-│   └── condition_parser.py      # win/lose 条件表达式解析
+│   ├── core/                    # 对局引擎、导演、演员、会话、条件解析
+│   │   ├── engine.py
+│   │   ├── director.py
+│   │   ├── roleplay.py
+│   │   ├── session.py
+│   │   └── condition_parser.py
+│   ├── content/                 # 剧本仓库与 schema 校验
+│   │   ├── script_repository.py
+│   │   └── validator.py
+│   ├── llm/                     # LLM 客户端与配置
+│   │   ├── client.py
+│   │   └── config.py
+│   ├── prompts/                 # Prompt 模板管理
+│   │   └── manager.py
+│   └── dev/                     # 开发者模式专属逻辑
+│       ├── auth.py
+│       ├── drafts.py
+│       ├── path_calculator.py
+│       └── prompt_preview.py
 │
 ├── scripts/                     # 生产剧本（JSON，dev 保存并发布写入此处）
 │   ├── fanfic/                  # 影视同人 · origin_tag: 影视同人
@@ -164,9 +195,17 @@ intereactive_chat_script/
 │   └── script_gen_prompt.md     # 用 AI 批量生成新剧本 JSON 的提示词模板
 │
 ├── static/                      # 玩家端前端
-│   ├── index.html
-│   ├── app.js                   # 选剧本、对局、SSE 流式、结局卡片
+│   ├── index.html               # 选本 + briefing + Echoes 对局页 + 结局
+│   ├── app.js                   # 选剧本、briefing、与 Alpine 对局页事件通信
 │   ├── style.css
+│   ├── echoes/                  # v1.3 Echoes 阅读流模块
+│   │   ├── echoes.css           # 设计 token + 组件样式
+│   │   ├── echoes-core.js       # Echo 触发、文案池、调性变量
+│   │   └── echoes-app.js        # Alpine 对局逻辑 + SSE 流式
+│   ├── concept/
+│   │   └── echoes_demo.html     # 静态 Concept Demo（假数据）
+│   ├── vendor/
+│   │   └── alpine.min.js        # Alpine.js（本地托管）
 │   └── dev/                     # 开发者模式前端
 │       ├── index.html
 │       └── dev.js               # 剧本编辑 / LLM 调试 / 试玩 / diff / 导出
@@ -176,6 +215,9 @@ intereactive_chat_script/
 │   └── prompts/                 # Save Draft 的 Prompt 模板
 │
 └── docs/                        # 设计与参考文档（见下节）
+    └──  v1.0/
+        └── ui_screenshots/      # README 用界面截图
+            └── echoes_gameplay_v1.3.png
 ```
 
 ### 主要 API 路由
@@ -197,7 +239,7 @@ intereactive_chat_script/
 
 ## 文档结构（`docs/`）
 
-设计文档按版本迭代组织；**当前实现以 v1.2 为准**，早期文档保留作历史参考。
+设计文档按版本迭代组织；**玩家端 UI 以 v1.3（Echoes 阅读流）为准**，开发者模式规格以 v1.2 为准。
 
 ```
 docs/
@@ -208,9 +250,13 @@ docs/
 └──  v1.0/                       # v1.x 里程碑文档（注意目录名含前导空格）
     ├── design_doc_v1.0.md       # v1.0：双 Agent 架构、Prompt 模板机制、工程拆分
     ├── design_doc_v1.1.md       # v1.1：剧本分类标签、选择页、briefing 等 UX
-    ├── design_doc_v1.2.md       # v1.2（当前）：/dev 编辑器、草稿、试玩调试、假设路径 ★
+    ├── design_doc_v1.2.md       # v1.2：/dev 编辑器、草稿、试玩调试、假设路径
+    ├── design_docv1.3.md        # v1.3（当前 UI）：Echoes 阅读流、Alpine.js、后端目录重构 ★
+    ├── backend_refract.md       # v1.3 后端目录重构方案与验证清单
     ├── chat_script_optimization.md
     │                            # 关键点/减分点系统、结构化 reaction、emotion_vocabulary
+    ├── ui_screenshots/          # 界面截图（供 README 引用）
+    │   └── echoes_gameplay_v1.3.png
     └── ui_mockup_v1.0/          # v1.0 时期 UI 静态 mockup（HTML，仅供参考）
         ├── script_selection_preview.html
         ├── ruxi_gameplay_screen_mockup.html
@@ -226,11 +272,12 @@ docs/
 | 2 | [`docs/ v1.0/chat_script_optimization.md`](docs/%20v1.0/chat_script_optimization.md) | 理解 `key_points` / `pitfalls` / `reaction` / 剧本 JSON 扩展 |
 | 3 | [`docs/ v1.0/design_doc_v1.1.md`](docs/%20v1.0/design_doc_v1.1.md) | 理解 `origin_tag`、`theme_tags`、玩家端选本与入场须知 |
 | 4 | [`docs/ v1.0/design_doc_v1.2.md`](docs/%20v1.0/design_doc_v1.2.md) | **开发者模式完整规格**：校验、草稿、试玩调试、Prompt 编辑 |
+| 5 | [`docs/ v1.0/design_docv1.3.md`](docs/%20v1.0/design_docv1.3.md) | **Echoes 阅读流 UI**、Echo 卡片、调性参数、待办项 |
 | — | [`docs/design_document.md`](docs/design_document.md) | 最早期的脚手架与部署思路，部分细节已被 v1.x 覆盖 |
 
 ### 剧本 JSON 核心字段（速查）
 
-完整 schema 与校验规则见 `game/validator.py` 与 design_doc_v1.2 §四。
+完整 schema 与校验规则见 `game/content/validator.py` 与 design_doc_v1.2 §四。
 
 | 字段 | 说明 |
 |------|------|
@@ -242,6 +289,8 @@ docs/
 | `win_condition`, `lose_condition` | 条件表达式，如 `好感度 >= 70 且 愤怒值 <= 20` |
 | `max_turns`, `opening_line` | 回合上限与 AI 开场白 |
 | `ending_titles` | 结局卡片标题（`win` / `lose`）；可选 `ending_lines` 作规则兜底文案 |
+| `echo_phrases` | （v1.3 可选）Echo 卡片文学化文案池，按数值名 + 变化方向/幅度分类；未配置则用前端通用兜底 |
+| `tone_preset` | （v1.3 可选）阅读流调性：`从容`（默认）/ `明快`，影响行高与动效时长 |
 
 开发者模式功能说明亦见上文 [开发者模式（/dev）](#开发者模式dev) 一节。
 
