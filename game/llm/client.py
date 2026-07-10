@@ -5,11 +5,20 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
-from openai import OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 
+from game import access as invite_access
 from game.llm.config import LLMConfig
+from game.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+# In-world fallback when the network layer fails (never expose raw timeouts).
+NETWORK_FALLBACK_MESSAGE = "对方似乎愣了一下，没能立刻接上话……稍后再试一次吧。"
+
+
+def _timeout_seconds() -> float:
+    return max(float(get_settings().llm_timeout_seconds), 5.0)
 
 
 def _extra_body(config: LLMConfig) -> dict[str, Any]:
@@ -57,7 +66,34 @@ def extract_emotion_tag_from_partial_json(text: str) -> str:
 
 
 def _client_for(config: LLMConfig) -> OpenAI:
-    return OpenAI(api_key=config.api_key, base_url=config.api_base)
+    return OpenAI(
+        api_key=config.api_key,
+        base_url=config.api_base,
+        timeout=_timeout_seconds(),
+        max_retries=0,
+    )
+
+
+def _is_transient(exc: Exception) -> bool:
+    return isinstance(exc, (APIConnectionError, APITimeoutError, TimeoutError, ConnectionError))
+
+
+def _call_with_retry(fn, *, label: str):
+    """Run once; on transient network error, retry exactly once."""
+    try:
+        return fn()
+    except Exception as first:
+        if not _is_transient(first) and not isinstance(first, RateLimitError):
+            invite_access.runtime_stats.record_llm_failure()
+            logger.warning("llm_fail label=%s err=%s", label, type(first).__name__)
+            raise
+        logger.warning("llm_retry label=%s err=%s", label, type(first).__name__)
+        try:
+            return fn()
+        except Exception as second:
+            invite_access.runtime_stats.record_llm_failure()
+            logger.warning("llm_fail label=%s err=%s after_retry=1", label, type(second).__name__)
+            raise
 
 
 def chat_completion(
@@ -73,8 +109,15 @@ def chat_completion(
     }
     if extra:
         kwargs["extra_body"] = extra
-    response = _client_for(config).chat.completions.create(**kwargs)
-    return response.choices[0].message.content or ""
+
+    def _once():
+        response = _client_for(config).chat.completions.create(**kwargs)
+        return response.choices[0].message.content or ""
+
+    start = time.perf_counter()
+    result = _call_with_retry(_once, label="chat_completion")
+    invite_access.runtime_stats.record_latency_ms((time.perf_counter() - start) * 1000)
+    return result
 
 
 def chat_stream(
@@ -91,11 +134,22 @@ def chat_stream(
     }
     if extra:
         kwargs["extra_body"] = extra
-    stream = _client_for(config).chat.completions.create(**kwargs)
-    for chunk in stream:
-        delta = chunk.choices[0].delta.content
-        if delta:
-            yield delta
+
+    def _once():
+        return _client_for(config).chat.completions.create(**kwargs)
+
+    start = time.perf_counter()
+    try:
+        stream = _call_with_retry(_once, label="chat_stream")
+    except Exception:
+        raise
+    try:
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+    finally:
+        invite_access.runtime_stats.record_latency_ms((time.perf_counter() - start) * 1000)
 
 
 def parse_json_response(text: str) -> dict[str, Any]:
@@ -132,27 +186,44 @@ def chat_json_stream_debug(
     if extra:
         kwargs["extra_body"] = extra
 
-    stream = _client_for(config).chat.completions.create(**kwargs)
-    for chunk in stream:
-        if getattr(chunk, "usage", None):
-            usage["input_tokens"] = chunk.usage.prompt_tokens
-            usage["output_tokens"] = chunk.usage.completion_tokens
-        if not chunk.choices:
-            continue
-        delta = chunk.choices[0].delta.content
-        if delta:
-            if ttft_ms is None:
-                ttft_ms = int((time.perf_counter() - start) * 1000)
-            accumulated += delta
+    def _once():
+        return _client_for(config).chat.completions.create(**kwargs)
+
+    try:
+        stream = _call_with_retry(_once, label="chat_json_stream_debug")
+        for chunk in stream:
+            if getattr(chunk, "usage", None):
+                usage["input_tokens"] = chunk.usage.prompt_tokens
+                usage["output_tokens"] = chunk.usage.completion_tokens
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                if ttft_ms is None:
+                    ttft_ms = int((time.perf_counter() - start) * 1000)
+                accumulated += delta
+    except Exception as exc:
+        logger.warning("LLM stream debug failed: %s", type(exc).__name__)
+        total_ms = int((time.perf_counter() - start) * 1000)
+        meta = {
+            "prompts": _prompts_from_messages(messages),
+            "ttft_ms": total_ms,
+            "total_ms": total_ms,
+            "usage": usage,
+            "raw_output": "",
+            "error": NETWORK_FALLBACK_MESSAGE,
+        }
+        return dict(fallback), meta
 
     total_ms = int((time.perf_counter() - start) * 1000)
     if ttft_ms is None:
         ttft_ms = total_ms
+    invite_access.runtime_stats.record_latency_ms(total_ms)
 
     try:
         parsed = _extract_json(accumulated)
     except Exception as exc:
-        logger.warning("LLM JSON parse failed (stream debug): %s", exc)
+        logger.warning("LLM JSON parse failed (stream debug): %s", type(exc).__name__)
         parsed = dict(fallback)
 
     meta = {
@@ -174,7 +245,7 @@ def chat_json(
         raw = chat_completion(messages, config, temperature=0.7)
         return _extract_json(raw)
     except Exception as exc:
-        logger.warning("LLM JSON parse failed: %s", exc)
+        logger.warning("LLM JSON parse failed: %s", type(exc).__name__)
         return dict(fallback)
 
 

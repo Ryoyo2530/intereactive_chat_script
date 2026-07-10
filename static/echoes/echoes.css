@@ -507,6 +507,8 @@
   border: 1px solid var(--echo-border);
   background: var(--echo-bg);
   padding: 1.75rem 1.5rem;
+  max-height: 90dvh;
+  overflow-y: auto;
 }
 
 .echoes-ending-meta {
@@ -1004,4 +1006,322 @@
   flex-direction: column;
   gap: 0.625rem;
   padding: 0.75rem;
+}
+
+/* ── v1.4: cold start, credit, share ── */
+
+.echoes-cold-start {
+  border: 1px solid var(--echo-border);
+  padding: 2rem 1.25rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 1rem;
+}
+
+.echoes-cold-start-text {
+  font-size: 0.875rem;
+  color: var(--echo-ink);
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.03em;
+}
+
+.echoes-cold-start-hint {
+  font-size: 0.6875rem;
+  color: var(--echo-muted);
+  margin: 0;
+  letter-spacing: normal;
+}
+
+.echoes-site-footer {
+  letter-spacing: 0.03em;
+}
+
+.echoes-author-note {
+  border-top: 1px solid var(--echo-border);
+  padding-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.echoes-author-note summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  color: var(--echo-ink);
+  cursor: pointer;
+  list-style: none;
+  letter-spacing: normal;
+  user-select: none;
+}
+
+.echoes-author-note summary::-webkit-details-marker {
+  display: none;
+}
+
+.echoes-author-note-title {
+  font-weight: 500;
+}
+
+.echoes-author-note-title::before {
+  content: "▾ ";
+  color: var(--echo-muted);
+  font-weight: 400;
+}
+
+.echoes-author-note:not([open]) .echoes-author-note-title::before {
+  content: "▸ ";
+}
+
+.echoes-author-note-hint {
+  font-size: 0.6875rem;
+  color: var(--echo-muted);
+}
+
+.echoes-author-note[open] .echoes-author-note-hint-closed,
+.echoes-author-note:not([open]) .echoes-author-note-hint-open {
+  display: none;
+}
+
+.echoes-author-note:not([open]) .echoes-author-note-hint-closed {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(138, 133, 120, 0.45);
+}
+
+.echoes-author-note[open] summary {
+  margin-bottom: 0.55rem;
+}
+
+.echoes-author-note-body {
+  font-size: 0.6875rem;
+  line-height: 1.7;
+  color: var(--echo-muted);
+}
+
+.echoes-author-note-body p {
+  margin: 0 0 0.5rem;
+}
+
+.echoes-author-note-body a {
+  color: var(--echo-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.echoes-credit-line {
+  font-size: 11px;
+  color: rgba(35, 35, 35, 0.45);
+  text-align: center;
+  margin: 0;
+  letter-spacing: 0.03em;
+}
+
+.echoes-ending-perf {
+  font-size: 0.625rem;
+  color: var(--echo-muted);
+  margin: 0 0 1rem;
+  letter-spacing: normal;
+}
+
+.echoes-share-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--echo-border);
+}
+
+.echoes-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.75rem;
+  justify-content: center;
+}
+
+.echoes-share-btn {
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.625rem;
+  color: var(--echo-muted);
+  padding: 0.15rem 0;
+  cursor: pointer;
+  letter-spacing: normal;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(138, 133, 120, 0.35);
+}
+
+.echoes-share-btn:hover {
+  color: var(--echo-ink);
+  text-decoration-color: var(--echo-ink);
+}
+
+.echoes-share-btn:disabled {
+  opacity: 0.4;
+  cursor: wait;
+}
+
+.echoes-share-status {
+  font-size: 0.625rem;
+  color: var(--echo-muted);
+  margin: 0.4rem 0 0;
+  letter-spacing: normal;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.echoes-ending-credit {
+  font-size: 10px;
+  color: rgba(35, 35, 35, 0.4);
+  margin: 1rem 0 0.25rem;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+.echoes-ending-disclaimer {
+  font-size: 10px;
+  color: rgba(35, 35, 35, 0.35);
+  margin: 0;
+  letter-spacing: 0.03em;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Off-screen capture root for html2canvas */
+#share-capture-root {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 360px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.share-card {
+  width: 360px;
+  box-sizing: border-box;
+  background: #F5F2EB;
+  color: #232323;
+  font-family: Georgia, "Noto Serif SC", "Songti SC", "STSong", serif;
+  padding: 1.75rem 1.5rem 1.25rem;
+  border: 1px solid #DDD8CF;
+  letter-spacing: 0.03em;
+}
+
+.share-brand {
+  font-size: 0.75rem;
+  color: #8A8578;
+  margin: 0 0 0.75rem;
+}
+
+.share-title {
+  font-size: 1.05rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+}
+
+.share-ending-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+  color: #4B6355;
+}
+
+.share-ending-text {
+  font-size: 0.8125rem;
+  line-height: 1.75;
+  margin: 0 0 1rem;
+}
+
+.share-stats {
+  border-top: 1px solid #DDD8CF;
+  padding-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.share-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #8A8578;
+  margin-bottom: 0.35rem;
+}
+
+.share-stat strong {
+  color: #232323;
+  font-weight: 500;
+}
+
+.share-echo {
+  border: 1px solid #DDD8CF;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.share-echo-phrase {
+  font-size: 0.75rem;
+  margin: 0 0 0.25rem;
+}
+
+.share-echo-deltas {
+  font-size: 0.6875rem;
+  color: #4B6355;
+  margin: 0;
+}
+
+.share-note {
+  font-size: 0.6875rem;
+  color: #8A8578;
+  margin: 0.5rem 0;
+}
+
+.share-perf,
+.share-watermark,
+.share-disclaimer {
+  font-size: 10px;
+  color: rgba(35, 35, 35, 0.4);
+  margin: 0.35rem 0 0;
+  text-align: center;
+}
+
+.share-flow {
+  border-top: 1px solid #DDD8CF;
+  padding-top: 0.75rem;
+}
+
+.share-flow-entry {
+  margin-bottom: 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+
+.share-flow-entry p {
+  margin: 0;
+}
+
+.share-flow-emotion {
+  font-size: 0.6875rem;
+  color: #7E7E7E;
+  margin: 0 0 0.2rem !important;
+}
+
+.share-flow-player {
+  border-left: 2px solid #4B6355;
+  padding-left: 0.5rem;
+}
+
+.share-speaker {
+  color: #4B6355;
+}
+
+.share-hint {
+  border: 1px dashed #DDD8CF;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: #8A8578;
+}
+
+.share-card-full {
+  width: 400px;
 }

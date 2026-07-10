@@ -1,3 +1,15 @@
+import {
+  SITE_CREDIT,
+  creditLine,
+  performanceId,
+  buildShareCopy,
+  exportEssenceImage,
+  exportFullImage,
+  exportTranscript,
+  shareOrDownload,
+  copyText,
+} from '/share/share-capture.js?v=4';
+
 const LLM_STORAGE_KEY = 'ruxi_llm_config';
 
 const PROVIDER_DEFAULTS = {
@@ -33,6 +45,10 @@ const state = {
   statsConfig: {},
   currentScriptId: null,
   allScripts: [],
+  authorized: false,
+  lastEnding: null,
+  flowEntries: [],
+  perfId: '',
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -41,6 +57,10 @@ const $$ = (sel) => document.querySelectorAll(sel);
 function showScreen(name) {
   $('#screen-select').classList.toggle('hidden', name !== 'select');
   $('#screen-game').classList.toggle('hidden', name !== 'game');
+}
+
+function showInviteGate(show) {
+  $('#invite-gate')?.classList.toggle('hidden', !show);
 }
 
 function switchTab(tab) {
@@ -192,15 +212,40 @@ function buildScriptCard(script) {
   return card;
 }
 
-function showEnding(outcome, text, turn, maxTurns) {
+function fillSiteCredit() {
+  const creditEl = $('#site-credit-line');
+  if (creditEl) creditEl.textContent = creditLine();
+
+  const endingCredit = $('#ending-credit');
+  if (endingCredit) endingCredit.textContent = creditLine();
+
+  const disclaimer = $('#ending-disclaimer');
+  if (disclaimer) {
+    disclaimer.textContent = `${SITE_CREDIT.disclaimer} · ${SITE_CREDIT.fanficNote}`;
+  }
+
+  const feedback = $('#footer-feedback-line');
+  if (feedback) {
+    if (SITE_CREDIT.feedbackUrl) {
+      feedback.innerHTML = `<a href="${SITE_CREDIT.feedbackUrl}" target="_blank" rel="noopener noreferrer">${SITE_CREDIT.feedbackLabel}</a>`;
+    } else {
+      feedback.textContent = `${SITE_CREDIT.feedbackLabel} · ${SITE_CREDIT.contact}`;
+    }
+  }
+}
+
+function showEnding(outcome, text, turn, maxTurns, extra = {}) {
   const isWin = outcome === 'win';
   const titles = state.script?.ending_titles || {};
   const outcomeLabel = isWin ? '达成' : '失败';
-  $('#ending-meta').textContent = `第 ${turn ?? state.turn} / ${maxTurns ?? state.maxTurns} 轮 · ${outcomeLabel}`;
-  $('#ending-title').textContent = isWin
+  const endingTitle = isWin
     ? (titles.win || '达成目标')
     : (titles.lose || '未能达成目标');
-  $('#ending-text').textContent = text || (isWin ? '你成功化解了矛盾！' : '未能达成目标，再试一次吧。');
+  const endingText = text || (isWin ? '你成功化解了矛盾！' : '未能达成目标，再试一次吧。');
+
+  $('#ending-meta').textContent = `第 ${turn ?? state.turn} / ${maxTurns ?? state.maxTurns} 轮 · ${outcomeLabel}`;
+  $('#ending-title').textContent = endingTitle;
+  $('#ending-text').textContent = endingText;
 
   const statsEl = $('#ending-stats');
   statsEl.innerHTML = '';
@@ -211,6 +256,20 @@ function showEnding(outcome, text, turn, maxTurns) {
     statsEl.appendChild(item);
   }
 
+  state.perfId = performanceId(state.script?.id || state.currentScriptId);
+  $('#ending-perf-id').textContent = state.perfId;
+
+  state.lastEnding = {
+    outcome,
+    endingTitle,
+    endingText,
+    turn: turn ?? state.turn,
+    maxTurns: maxTurns ?? state.maxTurns,
+  };
+  state.flowEntries = extra.entries || state.flowEntries || [];
+
+  fillSiteCredit();
+  $('#share-status')?.setAttribute('hidden', '');
   $('#ending-overlay').classList.remove('hidden');
   $('#echoes-input-area')?.classList.add('hidden');
 }
@@ -226,6 +285,8 @@ function resetToSelect() {
   state.stats = {};
   state.turn = 0;
   state.gameOver = false;
+  state.lastEnding = null;
+  state.flowEntries = [];
 
   window.dispatchEvent(new CustomEvent('echoes:reset'));
   hideEnding();
@@ -257,7 +318,6 @@ function renderScriptList() {
     return;
   }
 
-  // Group scripts by origin_tag, preserving CATEGORY_META order
   const grouped = new Map();
   for (const meta of CATEGORY_META) grouped.set(meta.origin_tag, []);
   for (const s of state.allScripts) {
@@ -301,6 +361,43 @@ function renderScriptList() {
   }
 }
 
+function showScriptsLoading() {
+  const list = $('#script-list');
+  if (!list) return;
+  list.innerHTML = `
+    <div id="script-list-loading" class="echoes-cold-start">
+      <p class="echoes-cold-start-text">正在唤醒沉睡的剧本…</p>
+      <p class="echoes-cold-start-hint">若刚从休眠中醒来，可能需要稍等片刻</p>
+    </div>
+  `;
+}
+
+async function loadScripts() {
+  showScriptsLoading();
+  try {
+    const res = await fetch('/api/scripts');
+    if (res.status === 401) {
+      showInviteGate(true);
+      return;
+    }
+    if (!res.ok) throw new Error('load failed');
+    const data = await res.json();
+    state.allScripts = (data && data.scripts) || [];
+    renderScriptList();
+  } catch (err) {
+    console.error(err);
+    const list = $('#script-list');
+    if (list) {
+      list.innerHTML = `
+        <div class="echoes-cold-start">
+          <p class="echoes-cold-start-text">剧本还在沉睡中…</p>
+          <p class="echoes-cold-start-hint">请稍后再试，或刷新页面</p>
+        </div>
+      `;
+    }
+  }
+}
+
 // ── Briefing Modal ──────────────────────────────────────────────
 
 let _briefingScriptId = null;
@@ -328,6 +425,10 @@ async function showScriptModal(scriptId) {
   let detail;
   try {
     const res = await fetch(`/api/scripts/${scriptId}/detail`);
+    if (res.status === 401) {
+      showInviteGate(true);
+      return;
+    }
     if (!res.ok) throw new Error('Failed to load script detail');
     detail = await res.json();
   } catch (err) {
@@ -341,11 +442,9 @@ async function showScriptModal(scriptId) {
   $('#briefing-text').textContent = detail.briefing;
   $('#briefing-objective').textContent = detail.objective;
 
-  // Step 2: character intro
   $('#briefing-ai-name').textContent = detail.ai_character.name;
   $('#briefing-ai-intro').textContent = detail.ai_character.intro;
 
-  // AI character customization: only for 你也一定遇到过
   const isOriginal = detail.origin_tag === '你也一定遇到过';
   $('#briefing-ai-setup').classList.toggle('hidden', !isOriginal);
   if (isOriginal) {
@@ -413,8 +512,12 @@ async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    if (res.status === 401) {
+      showInviteGate(true);
+      return;
+    }
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to start session');
     }
     const data = await res.json();
@@ -429,6 +532,7 @@ async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail
     state.statsConfig = data.script.stats_config || {};
     state.currentScriptId = scriptId;
     state.gameOver = false;
+    state.flowEntries = [];
 
     hideEnding();
     showScreen('game');
@@ -436,17 +540,96 @@ async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail
       detail: { ...data, scriptDetail },
     }));
   } catch (err) {
-    alert('启动游戏失败，请重试');
+    alert(err.message || '启动游戏失败，请重试');
     console.error(err);
   }
 }
+
+function sharePayload() {
+  const ending = state.lastEnding || {};
+  return {
+    title: state.script?.chapter_title || state.script?.title || '',
+    endingTitle: ending.endingTitle || '',
+    endingText: ending.endingText || '',
+    stats: state.stats,
+    echoes: (state.flowEntries || []).filter((e) => e.type === 'echo'),
+    entries: state.flowEntries || [],
+    originTag: state.script?.origin_tag || '',
+    aiName: state.aiName,
+    playerName: state.playerName,
+    perfId: state.perfId,
+  };
+}
+
+function setShareStatus(text) {
+  const el = $('#share-status');
+  if (!el) return;
+  if (!text) {
+    el.setAttribute('hidden', '');
+    el.textContent = '';
+    return;
+  }
+  el.removeAttribute('hidden');
+  el.textContent = text;
+}
+
+async function withShareBusy(btn, fn) {
+  const buttons = $$('.echoes-share-btn');
+  buttons.forEach((b) => { b.disabled = true; });
+  try {
+    await fn();
+  } finally {
+    buttons.forEach((b) => { b.disabled = false; });
+  }
+}
+
+$('#share-essence-btn')?.addEventListener('click', () => {
+  withShareBusy($('#share-essence-btn'), async () => {
+    setShareStatus('正在生成精华卡片…');
+    try {
+      const payload = sharePayload();
+      const result = await exportEssenceImage(payload);
+      const mode = await shareOrDownload(result, buildShareCopy(payload));
+      setShareStatus(mode === 'shared' ? '已调起系统分享' : '图片已下载（静态快照，不可续玩）');
+    } catch (err) {
+      console.error(err);
+      setShareStatus(err.message || '生成失败，请重试');
+    }
+  });
+});
+
+$('#share-full-btn')?.addEventListener('click', () => {
+  withShareBusy($('#share-full-btn'), async () => {
+    setShareStatus('正在生成完整回顾（较长图片）…');
+    try {
+      const payload = sharePayload();
+      const result = await exportFullImage(payload);
+      const mode = await shareOrDownload(result, buildShareCopy(payload));
+      setShareStatus(mode === 'shared' ? '已调起系统分享' : '完整回顾已下载');
+    } catch (err) {
+      console.error(err);
+      setShareStatus(err.message || '生成失败，请重试');
+    }
+  });
+});
+
+$('#share-txt-btn')?.addEventListener('click', () => {
+  exportTranscript(sharePayload());
+  setShareStatus('纯文本记录已下载');
+});
+
+$('#share-copy-btn')?.addEventListener('click', async () => {
+  const ok = await copyText(buildShareCopy(sharePayload()));
+  setShareStatus(ok ? '分享文案已复制（含体验链接）' : '复制失败，请手动选择文案');
+});
 
 window.addEventListener('echoes:game-over', (e) => {
   const d = e.detail || {};
   state.gameOver = true;
   state.stats = d.stats || state.stats;
   state.turn = d.turn ?? state.turn;
-  showEnding(d.outcome, d.ending_text, d.turn, d.maxTurns);
+  state.flowEntries = d.entries || [];
+  showEnding(d.outcome, d.ending_text, d.turn, d.maxTurns, { entries: d.entries });
 });
 
 window.addEventListener('echoes:exit', () => {
@@ -509,9 +692,64 @@ $('#cfg-test-btn').addEventListener('click', async () => {
   }
 });
 
-fillLLMForm(loadStoredLLMConfig() || { provider: 'doubao', ...PROVIDER_DEFAULTS.doubao, api_key: '' });
-switchTab('scripts');
-Promise.all([refreshLLMStatus(), fetch('/api/scripts').then(r => r.json())]).then(([, data]) => {
-  state.allScripts = (data && data.scripts) || [];
-  renderScriptList();
+$('#invite-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const code = $('#invite-code-input')?.value.trim() || '';
+  const errEl = $('#invite-gate-error');
+  if (errEl) {
+    errEl.classList.add('hidden');
+    errEl.textContent = '';
+  }
+  try {
+    const res = await fetch('/api/access/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || '邀请码不对');
+    }
+    location.reload();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message || '邀请码不对，再看看？';
+      errEl.classList.remove('hidden');
+    }
+  }
 });
+
+async function ensureInvite() {
+  try {
+    const probe = await fetch('/api/scripts');
+    if (probe.status === 401) {
+      showInviteGate(true);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(err);
+    return true; // network blip: don't block on invite
+  }
+}
+
+async function bootstrap() {
+  try {
+    fillSiteCredit();
+    fillLLMForm(loadStoredLLMConfig() || { provider: 'doubao', ...PROVIDER_DEFAULTS.doubao, api_key: '' });
+    switchTab('scripts');
+    showScreen('select');
+
+    const ok = await ensureInvite();
+    if (!ok) return;
+
+    state.authorized = true;
+    showInviteGate(false);
+    await Promise.all([refreshLLMStatus(), loadScripts()]);
+  } catch (err) {
+    console.error('bootstrap failed', err);
+    showScreen('select');
+  }
+}
+
+bootstrap();

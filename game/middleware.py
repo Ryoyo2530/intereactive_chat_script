@@ -10,7 +10,12 @@ from starlette.responses import JSONResponse, Response
 
 logger = logging.getLogger(__name__)
 
-STATIC_CACHE_PATHS = ("/echoes/", "/vendor/", "/style.css", "/app.js", "/favicon.ico")
+STATIC_CACHE_PATHS = (
+    "/echoes/",
+    "/vendor/",
+    "/favicon.ico",
+    "/robots.txt",
+)
 STATIC_CACHE_CONTROL = "public, max-age=86400"
 
 

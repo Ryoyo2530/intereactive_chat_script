@@ -1,15 +1,21 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
+from game.access import require_invite
 from game.core import engine
+from game.core import session as session_store
 from game.llm import client as llm_client
 from game.llm import config as llm_config
 
+# Public: index + favicon (no invite gate)
 router = APIRouter()
+
+# Player APIs: gated by invite cookie when INVITE_CODE is set
+api_router = APIRouter(dependencies=[Depends(require_invite)])
 
 static_dir = Path(__file__).resolve().parent.parent / "static"
 
@@ -49,12 +55,20 @@ def favicon():
     return Response(content=FAVICON_SVG, media_type="image/svg+xml")
 
 
-@router.get("/api/config/llm")
+@router.get("/")
+async def serve_index():
+    return FileResponse(
+        static_dir / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@api_router.get("/api/config/llm")
 def get_llm_config_status():
     return llm_config.get_status()
 
 
-@router.post("/api/config/llm/test")
+@api_router.post("/api/config/llm/test")
 def test_llm_config(body: LLMConfigRequest):
     try:
         cfg = llm_config.resolve_config(body.model_dump())
@@ -66,12 +80,12 @@ def test_llm_config(body: LLMConfigRequest):
         raise HTTPException(status_code=502, detail=f"连接失败: {exc}")
 
 
-@router.get("/api/scripts")
+@api_router.get("/api/scripts")
 def get_scripts():
     return {"scripts": engine.list_scripts()}
 
 
-@router.get("/api/scripts/{script_id}/detail")
+@api_router.get("/api/scripts/{script_id}/detail")
 def get_script_detail(script_id: str):
     try:
         script = engine.load_script(script_id)
@@ -99,7 +113,7 @@ def get_script_detail(script_id: str):
     }
 
 
-@router.post("/api/session/start")
+@api_router.post("/api/session/start")
 def start_session(body: StartSessionRequest):
     try:
         override = body.llm_config.model_dump() if body.llm_config else None
@@ -111,13 +125,15 @@ def start_session(body: StartSessionRequest):
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")
+    except session_store.SessionLimitError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="开局失败，请稍后再试") from exc
 
 
-@router.post("/api/session/message")
+@api_router.post("/api/session/message")
 def send_message(body: MessageRequest):
     try:
         return engine.process_message(body.session_id, body.message)
@@ -127,7 +143,7 @@ def send_message(body: MessageRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.post("/api/session/message/stream")
+@api_router.post("/api/session/message/stream")
 def send_message_stream(body: MessageRequest):
     try:
         def event_generator():
@@ -145,7 +161,7 @@ def send_message_stream(body: MessageRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.post("/api/session/hint")
+@api_router.post("/api/session/hint")
 def request_hint(body: HintRequest):
     try:
         return engine.get_hint(body.session_id)
@@ -153,11 +169,3 @@ def request_hint(body: HintRequest):
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-
-
-@router.get("/")
-async def serve_index():
-    return FileResponse(
-        static_dir / "index.html",
-        headers={"Cache-Control": "no-store"},
-    )

@@ -16,7 +16,19 @@ services:
         sync: false
       - key: LLM_MODEL
         value: doubao-seed-2-0-lite-260428
+      - key: LLM_TIMEOUT_SECONDS
+        value: "40"
+      - key: DEV_MODE_PASSWORD
+        sync: false
+      - key: INVITE_CODE
+        sync: false
       - key: RATE_LIMIT_PER_MINUTE
         value: "120"
       - key: LOG_LEVEL
         value: INFO
+      - key: SESSION_TTL_MINUTES
+        value: "30"
+      - key: SESSION_MAX_CONCURRENT
+        value: "200"
+      - key: SESSION_HARD_MAX_TURNS
+        value: "50"

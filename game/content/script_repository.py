@@ -6,6 +6,8 @@ both use these functions — never read the filesystem directly.
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -67,10 +69,32 @@ def resolve_path(script_id: str) -> Path | None:
     return None
 
 
+def _atomic_write(target: Path, text: str) -> None:
+    """Write via temp file + os.replace to avoid truncated JSON on crash."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=str(target.parent),
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+            tmp.write(text)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        os.replace(tmp_name, target)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 def save(script: dict[str, Any]) -> None:
     """Write script to disk and invalidate cache.
 
-    If the script already exists on disk, overwrites in place.
+    If the script already exists on disk, overwrites in place (atomic).
     New scripts go to scripts/pending_review/{id}.json.
     """
     script_id = script.get("id")
@@ -84,7 +108,7 @@ def save(script: dict[str, Any]) -> None:
         PENDING_DIR.mkdir(parents=True, exist_ok=True)
         target = PENDING_DIR / f"{script_id}.json"
 
-    target.write_text(json.dumps(script, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write(target, json.dumps(script, ensure_ascii=False, indent=2))
     logger.info("[script_repository] saved %s → %s", script_id, target)
     invalidate_cache()
 
