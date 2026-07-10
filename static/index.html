@@ -27,7 +27,7 @@
     }
   </script>
   <link rel="stylesheet" href="/style.css?v=7">
-  <link rel="stylesheet" href="/echoes/echoes.css?v=8">
+  <link rel="stylesheet" href="/echoes/echoes.css?v=9">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet">
@@ -39,7 +39,7 @@
     <div class="max-w-md w-full">
       <div class="text-center mb-8">
         <h1 class="echoes-select-title">入戏</h1>
-        <p class="echoes-select-sub mt-4">仅限受邀访问</p>
+        <p class="echoes-select-sub mt-4">👀出示你的请贴（邀请码）</p>
       </div>
       <form id="invite-form" class="echoes-form-panel w-full space-y-3">
         <div>
@@ -48,7 +48,8 @@
         </div>
         <p id="invite-gate-error" class="hidden" style="font-size:0.75rem;color:var(--echo-danger)"></p>
         <button type="submit" class="echoes-btn echoes-btn-primary w-full">进入</button>
-        <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.5rem;text-align:center">没有邀请码？请向分享给你链接的朋友索取。</p>
+        <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.5rem;text-align:center">没有邀请码❓请向分享给你链接的朋友大胆索要💡</p>
+        <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.5rem;text-align:center">或者联系作者📪 selina2530@163.com</p>
       </form>
     </div>
   </div>
@@ -127,11 +128,17 @@
 
     <!-- Author note + footer credit (v1.4) -->
     <footer class="echoes-site-footer w-full mt-10 mb-4">
-      <details class="echoes-author-note">
-        <summary>作者的话</summary>
+      <details class="echoes-author-note" open>
+        <summary>
+          <span class="echoes-author-note-title">作者的话</span>
+          <span class="echoes-author-note-hint echoes-author-note-hint-open">关于 「入戏」 · 可点此收起</span>
+          <span class="echoes-author-note-hint echoes-author-note-hint-closed">关于「入戏」· 点此展开</span>
+        </summary>
         <div class="echoes-author-note-body">
-          <p>这是一个小范围分享的互动对话 demo：你用语言推动隐藏数值，和 AI 角色共同写完一段戏。</p>
+          <p>这是一个小范围分享的互动对话 demo ————恭喜，you are invited! 🎉</p>
+          <p>你用语言推动角色的情绪数值，和 AI 角色共同写完一段戏。</p>
           <p>内容由 AI 生成，仅供娱乐体验。影视同人剧本为同人演绎，非原作品官方内容。</p>
+          <p>当前没有任何存档/读档功能哦，所有内容都是单次体验。觉得好玩可以在结算页点击保存完整对话。</p>
           <p>分享出去的是静态快照（图片/文字），不是可继续玩的会话链接。</p>
           <p id="footer-feedback-line"></p>
         </div>
@@ -321,6 +328,6 @@
 
   <script type="module" src="/echoes/echoes-app.js?v=5"></script>
   <script defer src="/vendor/alpine.min.js"></script>
-  <script type="module" src="/app.js?v=17"></script>
+  <script type="module" src="/app.js?v=19"></script>
 </body>
 </html>

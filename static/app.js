@@ -8,7 +8,7 @@ import {
   exportTranscript,
   shareOrDownload,
   copyText,
-} from '/share/share-capture.js?v=2';
+} from '/share/share-capture.js?v=4';
 
 const LLM_STORAGE_KEY = 'ruxi_llm_config';
 

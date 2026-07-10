@@ -117,7 +117,7 @@
   ],
   "win_condition": "怀疑值 <= 20 且 愤怒值 <= 20",
   "lose_condition": "愤怒值 >= 100",
-  "max_turns": 2,
+  "max_turns": 15,
   "opening_line": "唐晶转过身，嘴角带着一丝冷笑，声音却压得很低：“罗子君，你来了。我知道你是来解释的，可你告诉我——我到底该信你哪一句？”",
   "ending_titles": {
     "win": "唐晶原谅了你",

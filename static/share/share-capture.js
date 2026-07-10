@@ -6,17 +6,17 @@
 export const SITE_CREDIT = {
   brand: '入戏',
   author: 'Ryoyo',
-  contact: '欢迎私信反馈',
+  contact: '📮selina2530@163.com',
   disclaimer: '内容由AI生成，仅供娱乐体验',
   fanficNote: '非原作品官方内容，人物为同人演绎',
   feedbackUrl: '',
-  feedbackLabel: '觉得哪里怪？告诉我',
+  feedbackLabel: '觉得哪里怪？欢迎私信',
   /** Canonical public URL used in share copy when not on that host */
   siteUrl: 'https://ruxi.onrender.com',
 };
 
 export function creditLine() {
-  return `${SITE_CREDIT.brand} · by ${SITE_CREDIT.author} · ${SITE_CREDIT.contact}`;
+  return `${SITE_CREDIT.brand} · by ${SITE_CREDIT.author}`;
 }
 
 /** Prefer current origin on deployed hosts; fall back to configured siteUrl. */
@@ -196,7 +196,7 @@ export function buildShareCopy(payload) {
   return [
     `我刚在「${SITE_CREDIT.brand}」演完一局《${title}》`,
     ending ? `结局：${ending}` : '',
-    `来玩：${url}`,
+    `来玩：🔗 ${url}`,
     '（需邀请码；链接是体验入口，不是可续玩的本局）',
   ].filter(Boolean).join('\n');
 }
