@@ -197,7 +197,7 @@ export function buildShareCopy(payload) {
     `我刚在「${SITE_CREDIT.brand}」演完一局《${title}》`,
     ending ? `结局：${ending}` : '',
     `来玩：🔗 ${url}`,
-    '（需邀请码；链接是体验入口，不是可续玩的本局）',
+    '（链接是体验入口，不是可续玩的本局）',
   ].filter(Boolean).join('\n');
 }
 
