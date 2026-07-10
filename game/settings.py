@@ -18,9 +18,14 @@ class AppSettings(BaseSettings):
     llm_api_base: str = Field(default="", validation_alias="LLM_API_BASE")
     llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
     llm_model: str = Field(default="", validation_alias="LLM_MODEL")
+    llm_timeout_seconds: float = Field(default=40.0, validation_alias="LLM_TIMEOUT_SECONDS")
     dev_mode_password: str = Field(default="", validation_alias="DEV_MODE_PASSWORD")
+    invite_code: str = Field(default="", validation_alias="INVITE_CODE")
     rate_limit_per_minute: int = Field(default=120, validation_alias="RATE_LIMIT_PER_MINUTE")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    session_ttl_minutes: int = Field(default=30, validation_alias="SESSION_TTL_MINUTES")
+    session_max_concurrent: int = Field(default=200, validation_alias="SESSION_MAX_CONCURRENT")
+    session_hard_max_turns: int = Field(default=50, validation_alias="SESSION_HARD_MAX_TURNS")
 
 
 @lru_cache

@@ -55,7 +55,7 @@ uvicorn main:app --reload
 
 | 地址 | 说明 |
 |------|------|
-| http://localhost:8000 | 玩家端 |
+| http://localhost:8000 | 玩家端（配置了邀请码池时需先输入邀请码） |
 | http://localhost:8000/dev | 开发者模式（需 `DEV_MODE_PASSWORD`） |
 
 ---
@@ -73,7 +73,15 @@ LLM_PROVIDER=doubao        # doubao / openai / custom
 LLM_API_BASE=https://...
 LLM_API_KEY=your-key
 LLM_MODEL=model-id
+LLM_TIMEOUT_SECONDS=40
+DEV_MODE_PASSWORD=...      # 开发者模式
+INVITE_CODE=...            # 玩家端单一邀请码（留空关闭；换码即作废全部旧 cookie）
+SESSION_TTL_MINUTES=30
+SESSION_MAX_CONCURRENT=200
+SESSION_HARD_MAX_TURNS=50
 ```
+
+邀请码：Render / `.env` 配置一个 `INVITE_CODE` 即可。全体朋友共用；想作废时改掉该变量重新部署。
 
 **网页配置**（适合访客自带 Key）— 玩家端「模型配置」Tab 填写并保存，Key 存于浏览器 localStorage。
 
@@ -150,27 +158,30 @@ intereactive_chat_script/
 ├── main.py                      # FastAPI 入口：挂载 routers + 静态资源
 ├── requirements.txt
 ├── render.yaml                  # Render 部署配置
-├── .env.example                 # 环境变量模板（LLM_*、DEV_MODE_PASSWORD）
+├── .env.example                 # 环境变量模板（LLM_*、DEV_MODE_PASSWORD、INVITE_CODE）
 │
 ├── routers/                     # API 路由（由 main.py 挂载）
 │   ├── player.py                # 玩家端：剧本、对局、首页
+│   ├── access.py                # 玩家端：邀请码校验
 │   ├── dev_scripts.py           # dev：登录、剧本 CRUD、导入导出
 │   ├── dev_drafts.py            # dev：草稿管理、对比
 │   ├── dev_prompts.py           # dev：Prompt 草稿/发布/预览
-│   └── dev_simulate.py          # dev：试玩 start/message
+│   ├── dev_simulate.py          # dev：试玩 start/message
+│   └── dev_stats.py             # dev：轻量运行指标
 │
 ├── game/                        # 后端核心逻辑
+│   ├── access.py                # 单一共享邀请码 + 内存运行指标
 │   ├── core/                    # 对局引擎、导演、演员、会话、条件解析
 │   │   ├── engine.py
 │   │   ├── director.py
 │   │   ├── roleplay.py
-│   │   ├── session.py
+│   │   ├── session.py           # TTL 惰性清理 / 并发上限 / 轮次硬顶
 │   │   └── condition_parser.py
 │   ├── content/                 # 剧本仓库与 schema 校验
-│   │   ├── script_repository.py
+│   │   ├── script_repository.py # 原子写保护
 │   │   └── validator.py
 │   ├── llm/                     # LLM 客户端与配置
-│   │   ├── client.py
+│   │   ├── client.py            # 超时 + 一次轻量重试
 │   │   └── config.py
 │   ├── prompts/                 # Prompt 模板管理
 │   │   └── manager.py
@@ -179,6 +190,11 @@ intereactive_chat_script/
 │       ├── drafts.py
 │       ├── path_calculator.py
 │       └── prompt_preview.py
+│
+├── static/
+│   ├── robots.txt               # Disallow: /
+│   ├── share/share-capture.js   # 分享图片 / 纯文本导出
+│   └── echoes/                  # Echoes 阅读流 UI
 │
 ├── scripts/                     # 生产剧本（JSON，dev 保存并发布写入此处）
 │   ├── fanfic/                  # 影视同人 · origin_tag: 影视同人
@@ -315,7 +331,7 @@ Render 监听 `main`（见 `render.yaml`）。
 - **Build:** `pip install -r requirements.txt`
 - **Start:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
-部署环境需配置 `LLM_*` 与（可选）`DEV_MODE_PASSWORD`。
+部署环境需配置 `LLM_*`；建议配置 `INVITE_CODE`（玩家端邀请码）与（可选）`DEV_MODE_PASSWORD`。
 
 ### Render 免费实例：性能与限制
 

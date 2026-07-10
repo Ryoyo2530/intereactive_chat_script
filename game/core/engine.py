@@ -2,6 +2,7 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
+from game import access as invite_access
 from game.core import director, roleplay, condition_parser
 from game.core import session as session_store
 from game.content import script_repository
@@ -44,8 +45,7 @@ def _script_ending_text(
     lines = script.get("ending_lines") or script.get("ending_texts") or {}
     titles = script.get("ending_titles") or {}
     ai_name = (script.get("ai_character") or {}).get("name") or "对方"
-    max_turns = script.get("max_turns", 15)
-
+    max_turns = session_store.effective_max_turns(script.get("max_turns", 15))
     if timeout:
         text = lines.get("timeout") or titles.get("timeout")
         if text:
@@ -67,7 +67,7 @@ def _rule_based_end(script: dict[str, Any], stats: dict[str, int], turn: int) ->
         return True, "lose", _script_ending_text(script, "lose")
     if _evaluate_condition(script["win_condition"], stats):
         return True, "win", _script_ending_text(script, "win")
-    max_turns = script.get("max_turns", 15)
+    max_turns = session_store.effective_max_turns(script.get("max_turns", 15))
     if turn >= max_turns:
         return True, "lose", _script_ending_text(script, "lose", timeout=True)
     return False, None, None
@@ -96,12 +96,25 @@ def _session_roleplay_config(game_session: dict[str, Any]) -> llm_config.LLMConf
 
 def _prepare_turn(game_session: dict[str, Any], message: str) -> str:
     script = game_session["script"]
+    max_turns = session_store.effective_max_turns(script.get("max_turns", 15))
+    if game_session["turn"] >= max_turns:
+        raise ValueError("本局轮次已达上限")
+    # Cap history growth even if a client keeps posting after soft end.
+    if len(game_session["history"]) >= max_turns * 2 + 4:
+        raise ValueError("本局记录过长，请重新开局")
     game_session["history"].append({
         "role": "user",
         "content": message,
         "character": script["player_character"]["name"],
     })
     game_session["turn"] += 1
+    logger.info(
+        "turn_start session=%s turn=%s history_len=%s msg_len=%s",
+        game_session.get("script_id", "")[:24],
+        game_session["turn"],
+        len(game_session["history"]),
+        len(message or ""),
+    )
     return message
 
 
@@ -288,7 +301,7 @@ def _build_response(
         "hit_key_points": hit_key_points or [],
         "hit_pitfalls": hit_pitfalls or [],
         "turn": game_session["turn"],
-        "max_turns": script.get("max_turns", 15),
+        "max_turns": session_store.effective_max_turns(script.get("max_turns", 15)),
         "game_over": game_over,
         "outcome": outcome,
         "result": outcome,
@@ -325,6 +338,7 @@ def start_game(
         llm_config_roleplay=roleplay_cfg.as_dict(),
         prompt_overrides=prompt_overrides,
     )
+    invite_access.runtime_stats.record_session_start()
     game_session = session_store.get_session(session_id)
     opening = script.get("opening_line", "……")
     game_session["history"].append({
@@ -332,13 +346,14 @@ def start_game(
         "content": opening,
         "character": script["ai_character"]["name"],
     })
+    max_turns = session_store.effective_max_turns(script.get("max_turns", 15))
     return {
         "session_id": session_id,
         "script": {
             "id": script["id"],
             "title": script["title"],
             "objective": script["objective"],
-            "max_turns": script.get("max_turns", 15),
+            "max_turns": max_turns,
             "ai_character_name": script["ai_character"]["name"],
             "player_character_name": script["player_character"]["name"],
             "stats_config": script.get("stats", {}),
@@ -347,6 +362,7 @@ def start_game(
             "tone_preset": script.get("tone_preset", "从容"),
             "chapter_title": script.get("chapter_title", script["title"]),
             "max_hints": script.get("max_hints", 3),
+            "origin_tag": script.get("origin_tag", ""),
         },
         "opening_line": opening,
         "stats": game_session["stats"],
@@ -481,7 +497,27 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     director_cfg = _session_director_config(game_session)
     roleplay_cfg = _session_roleplay_config(game_session)
 
-    director_result = director.judge(game_session, player_message, director_cfg)
+    try:
+        director_result = director.judge(game_session, player_message, director_cfg)
+    except Exception as exc:
+        logger.warning("[engine] director failed: %s", type(exc).__name__)
+        yield {
+            "type": "done",
+            "reply": llm_client.NETWORK_FALLBACK_MESSAGE,
+            "emotion_tag": "",
+            "stats": game_session["stats"],
+            "stat_changes": {},
+            "hit_key_points": [],
+            "hit_pitfalls": [],
+            "turn": game_session["turn"],
+            "max_turns": session_store.effective_max_turns(game_session["script"].get("max_turns", 15)),
+            "game_over": False,
+            "outcome": None,
+            "result": None,
+            "ending_text": None,
+        }
+        return
+
     stats, stat_changes = _process_director_turn(game_session, director_result)
 
     game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
@@ -502,20 +538,32 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     gotToken = False
     reaction = director_result.get("reaction") or {}
 
-    for chunk in roleplay.respond_stream(game_session, player_message, reaction, roleplay_cfg):
-        accumulated += chunk
+    try:
+        stream_iter = roleplay.respond_stream(game_session, player_message, reaction, roleplay_cfg)
+        for chunk in stream_iter:
+            accumulated += chunk
 
-        if not streamed_emotion_tag:
-            extracted_tag = llm_client.extract_emotion_tag_from_partial_json(accumulated)
-            if extracted_tag:
-                streamed_emotion_tag = extracted_tag
-                yield {"type": "emotion_tag", "emotion_tag": streamed_emotion_tag}
+            if not streamed_emotion_tag:
+                extracted_tag = llm_client.extract_emotion_tag_from_partial_json(accumulated)
+                if extracted_tag:
+                    streamed_emotion_tag = extracted_tag
+                    yield {"type": "emotion_tag", "emotion_tag": streamed_emotion_tag}
 
-        reply = llm_client.extract_reply_from_partial_json(accumulated)
-        if len(reply) > len(streamed_reply):
-            yield {"type": "token", "content": reply[len(streamed_reply):]}
-            streamed_reply = reply
-            gotToken = True
+            reply = llm_client.extract_reply_from_partial_json(accumulated)
+            if len(reply) > len(streamed_reply):
+                yield {"type": "token", "content": reply[len(streamed_reply):]}
+                streamed_reply = reply
+                gotToken = True
+    except Exception as exc:
+        logger.warning("[engine] roleplay stream failed: %s", type(exc).__name__)
+        reply = streamed_reply or llm_client.NETWORK_FALLBACK_MESSAGE
+        emotion_tag = streamed_emotion_tag
+        response = _build_response(
+            game_session, reply, stat_changes, False, None, None, emotion_tag,
+            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+        )
+        yield {"type": "done", **response}
+        return
 
     try:
         parsed = llm_client.parse_json_response(accumulated)

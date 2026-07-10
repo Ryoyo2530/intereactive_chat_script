@@ -304,13 +304,20 @@ export function echoesGame() {
               maxTurns: this.maxTurns,
               stats: this.stats,
               script: this.script,
+              entries: this.entries.map((e) => ({
+                type: e.type,
+                text: e.text,
+                emotion: e.emotion,
+                phrase: e.phrase,
+                deltas: e.deltas,
+              })),
             },
           }));
         }
       } catch (err) {
         console.error(err);
         this.waitingForReply = false;
-        this.appendAi('（系统暂时无法响应，请稍后再试。）', '');
+        this.appendAi('对方似乎愣了一下，没能立刻接上话……稍后再试一次吧。', '');
       } finally {
         this.busy = false;
         this.waitingForReply = false;

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
   <title>入戏</title>
   <link rel="icon" href="/favicon.ico" type="image/svg+xml">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -25,15 +26,34 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/style.css?v=6">
-  <link rel="stylesheet" href="/echoes/echoes.css?v=5">
+  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/echoes/echoes.css?v=8">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet">
 </head>
 <body class="echoes-select-bg">
 
-  <!-- Script Selection Screen -->
+  <!-- Invite gate (v1.4) — overlay; shown when /api/scripts returns 401 -->
+  <div id="invite-gate" class="hidden fixed inset-0 z-[70] echoes-select-bg flex flex-col items-center justify-center p-6">
+    <div class="max-w-md w-full">
+      <div class="text-center mb-8">
+        <h1 class="echoes-select-title">入戏</h1>
+        <p class="echoes-select-sub mt-4">仅限受邀访问</p>
+      </div>
+      <form id="invite-form" class="echoes-form-panel w-full space-y-3">
+        <div>
+          <label for="invite-code-input">邀请码</label>
+          <input id="invite-code-input" type="password" autocomplete="off" placeholder="请输入邀请码" required>
+        </div>
+        <p id="invite-gate-error" class="hidden" style="font-size:0.75rem;color:var(--echo-danger)"></p>
+        <button type="submit" class="echoes-btn echoes-btn-primary w-full">进入</button>
+        <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.5rem;text-align:center">没有邀请码？请向分享给你链接的朋友索取。</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Script Selection Screen (visible by default; invite gate may hide it) -->
   <div id="screen-select" class="min-h-screen flex flex-col items-center p-6 pt-10 sm:pt-16 max-w-md mx-auto w-full">
     <div class="text-center mb-8">
       <h1 class="echoes-select-title">入戏</h1>
@@ -58,7 +78,10 @@
         请先完成 <button type="button" data-tab-link="settings" class="underline">模型配置</button> 后再开始游戏
       </div>
       <div id="script-list">
-        <div style="height:6rem;border:1px solid var(--echo-border);opacity:0.5"></div>
+        <div id="script-list-loading" class="echoes-cold-start">
+          <p class="echoes-cold-start-text">正在唤醒沉睡的剧本…</p>
+          <p class="echoes-cold-start-hint">若刚从休眠中醒来，可能需要稍等片刻</p>
+        </div>
       </div>
     </div>
 
@@ -101,6 +124,20 @@
         <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.75rem">温馨提示：请用你自己的 API Key，不要泄露给他人哦。</p>
       </form>
     </div>
+
+    <!-- Author note + footer credit (v1.4) -->
+    <footer class="echoes-site-footer w-full mt-10 mb-4">
+      <details class="echoes-author-note">
+        <summary>作者的话</summary>
+        <div class="echoes-author-note-body">
+          <p>这是一个小范围分享的互动对话 demo：你用语言推动隐藏数值，和 AI 角色共同写完一段戏。</p>
+          <p>内容由 AI 生成，仅供娱乐体验。影视同人剧本为同人演绎，非原作品官方内容。</p>
+          <p>分享出去的是静态快照（图片/文字），不是可继续玩的会话链接。</p>
+          <p id="footer-feedback-line"></p>
+        </div>
+      </details>
+      <p id="site-credit-line" class="echoes-credit-line"></p>
+    </footer>
   </div>
 
   <!-- Game Screen — Echoes reading flow (v1.3) -->
@@ -258,20 +295,32 @@
 
   <!-- Ending Overlay — paper style -->
   <div id="ending-overlay" class="hidden echoes-ending-overlay">
-    <div class="echoes-ending-card">
+    <div class="echoes-ending-card" id="ending-card">
       <p id="ending-meta" class="echoes-ending-meta"></p>
       <h3 id="ending-title" class="echoes-ending-title"></h3>
       <p id="ending-text" class="echoes-ending-text"></p>
       <div id="ending-stats" class="echoes-ending-stats"></div>
+      <p id="ending-perf-id" class="echoes-ending-perf"></p>
       <div class="echoes-ending-actions">
         <button id="replay-btn" class="echoes-ending-btn">再玩一次</button>
         <button id="change-script-btn" class="echoes-ending-btn">换一个剧本</button>
       </div>
+      <section class="echoes-share-panel" aria-label="分享">
+        <div class="echoes-share-row">
+          <button type="button" id="share-essence-btn" class="echoes-share-btn">分享精华卡片</button>
+          <button type="button" id="share-copy-btn" class="echoes-share-btn">复制分享文案</button>
+          <button type="button" id="share-full-btn" class="echoes-share-btn">下载完整回顾</button>
+          <button type="button" id="share-txt-btn" class="echoes-share-btn">另存为纯文本</button>
+        </div>
+        <p id="share-status" class="echoes-share-status" hidden></p>
+      </section>
+      <p class="echoes-ending-credit" id="ending-credit"></p>
+      <p class="echoes-ending-disclaimer" id="ending-disclaimer"></p>
     </div>
   </div>
 
-  <script type="module" src="/echoes/echoes-app.js?v=3"></script>
+  <script type="module" src="/echoes/echoes-app.js?v=5"></script>
   <script defer src="/vendor/alpine.min.js"></script>
-  <script defer src="/app.js?v=12"></script>
+  <script type="module" src="/app.js?v=17"></script>
 </body>
 </html>
