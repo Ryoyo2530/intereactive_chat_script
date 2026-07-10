@@ -4,7 +4,7 @@
 【玩家本轮发言】
 玩家（{{player_character_name}}）：{{player_message}}
 
-【本轮反应指导】
+【当前你的状态】
 情绪基调：{{reaction_tone}}
 情绪强度：{{reaction_intensity}}
 回应聚焦：{{reaction_focus}}
