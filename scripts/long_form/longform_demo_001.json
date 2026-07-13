@@ -1,0 +1,710 @@
+{
+  "id": "longform_demo_001",
+  "type": "long_form",
+  "title": "图书馆奇妙夜",
+  "origin_tag": "你也一定遇到过",
+  "theme_tags": ["恋爱"],
+  "teaser": "闭馆音乐响起时，他忽然合上电脑看向你——那眼神里，有灯火，也有试探。",
+  "player_role_hint": "扮演 你 · 对手 林清野",
+  "estimated_turns_hint": "约 3 章 × 3 轮",
+  "stats": {
+    "信任度": {
+      "initial": 40,
+      "min": 0,
+      "max": 100,
+      "label": "信任度"
+    },
+    "压力值": {
+      "initial": 55,
+      "min": 0,
+      "max": 100,
+      "label": "压力值"
+    }
+  },
+  "entry_chapter_id": "ch_1_meet",
+  "ai_character": {
+    "name": "林清野",
+    "persona": "22岁，计算机系大四学生，学生会技术部长。平时话不多但做事周到，习惯观察别人需要什么再出手。身上有一种‘少年感的爹’气质——会顺手帮你修好耳机、递充电宝、把你挡在靠近马路的那一侧，但不会多解释。笑起来眉眼弯弯的，认真的时候会无意识皱眉。内核很稳，有主见，不喜欢别人替他操心，但会为在意的人熬夜写代码或陪着散步。他的犹豫藏在停顿里，他的在意藏在‘顺便’里。",
+    "emotion_vocabulary": [
+      "观察",
+      "从容",
+      "在意",
+      "笃定",
+      "轻松",
+      "温柔"
+    ]
+  },
+  "player_character": {
+    "name": "你"
+  },
+  "chapters": [
+    {
+      "id": "ch_1_meet",
+      "title": "第一章 · 闭馆前的十五分钟",
+      "background": "学校图书馆闭馆前十五分钟，你正在赶一篇论文，电脑却忽然闪出低电量提示——充电器忘在宿舍了。邻座靠窗的男生头也没抬，默默把一条白色的快充线推到你桌角边。你说谢谢，他‘嗯’了一声，继续看代码。十分钟后闭馆音乐响起，他合上电脑，忽然侧过头来看了你一眼，那一眼似乎酝酿了很久。",
+      "objective": "在图书馆关门前做出反应，留下一个让他不会忘记的瞬间",
+      "opening_line": "（他抬眼看向你，语气平常，但指节轻轻敲了一下桌面）你的论文还差多少？如果不急，我可以陪你到外面路灯下写完。",
+      "max_turns": 3,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "自然回应",
+          "description": "玩家没有过度客套或推脱，大方接受善意并轻松开启对话。",
+          "hit_stat_changes": {
+            "信任度": [12, 18],
+            "压力值": [-6, -2]
+          }
+        },
+        {
+          "id": 2,
+          "title": "表达感谢",
+          "description": "玩家提到充电线的事，具体而真诚地感谢他的细心。",
+          "hit_stat_changes": {
+            "信任度": [8, 14],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "过度紧张",
+          "description": "玩家因慌乱而拒绝或过度解释，把气氛弄得僵硬。",
+          "hit_stat_changes": {
+            "信任度": [-12, -6],
+            "压力值": [6, 12]
+          }
+        },
+        {
+          "id": 2,
+          "title": "无反馈",
+          "description": "玩家客气收下充电线却不接话，任由沉默蔓延。",
+          "hit_stat_changes": {
+            "信任度": [-6, -2],
+            "压力值": [4, 8]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 50",
+      "lose_condition": "信任度 <= 25",
+      "flags_write": [
+        {
+          "id": "flag_approached",
+          "trigger": "flag_approached",
+          "label": "你主动回应了他的邀请，一起去路灯下写论文",
+          "value": true
+        },
+        {
+          "id": "flag_avoided",
+          "trigger": "flag_avoided",
+          "label": "你客气地道了谢，独自走回宿舍",
+          "value": true
+        }
+      ],
+      "flags_read": [],
+      "exits": [
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 55 且 flag:flag_approached",
+          "next_chapter": "ch_2_night_walk"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 45 且 flag:flag_avoided",
+          "next_chapter": "ch_2b_quiet"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 <= 30",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "ai_choice",
+          "candidates": ["ch_2_night_walk", "ch_2b_quiet"],
+          "selection_guidance": "如果你在他眼里看到了一点期待，那可能是通往深处的那条路；但如果你只想保持安全距离，另一条路也不会太冷。",
+          "fallback_next_chapter": "ch_2b_quiet"
+        }
+      ],
+      "ending_titles": {
+        "win": "路灯下的开端",
+        "lose": "错过的人"
+      }
+    },
+    {
+      "id": "ch_2_night_walk",
+      "title": "第二章 · 路灯下的论文",
+      "background": "你们坐在图书馆外的长椅上，他把台灯放在石台上，你一边敲字一边听他说‘这里引用格式不对’。夜风很轻，他忽然停下话头，看着你说——‘其实我注意你很久了，你每次来都坐同一个位置。’你才发现，原来你们早就是彼此作息里的固定坐标。他的声音在路灯下显得比平时低一些，说完又低头翻了一页书，像是怕那句话太重。",
+      "objective": "在这一段独处里，确认彼此是否真的‘看见’了对方",
+      "opening_line": "（他低头帮你调了一下文档的页边距，声音有些低）你每次来都坐靠窗第三排，对吧？上次你耳机线缠在一起，我看了很久，最后还是没过去。",
+      "max_turns": 3,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "回应他的观察",
+          "description": "玩家对‘被留意’这件事没有躲闪，而是接住并表达了某种同样的在意。",
+          "hit_stat_changes": {
+            "信任度": [14, 20],
+            "压力值": [-8, -2]
+          }
+        },
+        {
+          "id": 2,
+          "title": "主动提问",
+          "description": "玩家反问他的作息或习惯，让对话从单方面观察变成双向交流。",
+          "hit_stat_changes": {
+            "信任度": [10, 16],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "回避话题",
+          "description": "玩家被戳穿心事时紧张地岔开话题，让他觉得你不想被靠近。",
+          "hit_stat_changes": {
+            "信任度": [-14, -8],
+            "压力值": [6, 12]
+          }
+        },
+        {
+          "id": 2,
+          "title": "过度试探",
+          "description": "玩家急于反问他‘所以你喜欢我？’，让他感到压力。",
+          "hit_stat_changes": {
+            "信任度": [-16, -10],
+            "压力值": [8, 14]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 60",
+      "lose_condition": "信任度 <= 25",
+      "flags_write": [
+        {
+          "id": "flag_deep_talk",
+          "trigger": "flag_deep_talk",
+          "label": "你们聊了一些关于自己的小事，像交换秘密一样",
+          "value": true
+        }
+      ],
+      "flags_read": [
+        {
+          "id": "flag_approached",
+          "label": "你曾选择主动回应他"
+        }
+      ],
+      "exits": [
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 68 且 flag:flag_deep_talk",
+          "next_chapter": "ch_3_dawn"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 55 且 flag:flag_deep_talk == false",
+          "next_chapter": "ch_3_dusk"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 <= 25",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "ai_choice",
+          "candidates": ["ch_3_dawn", "ch_3_dusk"],
+          "selection_guidance": "他提到‘下次还能一起写论文吗’——如果你觉得心动，就选那条通往晨光的；如果你还在犹豫，黄昏那条也许更适合。",
+          "fallback_next_chapter": "ch_3_dusk"
+        }
+      ],
+      "ending_titles": {
+        "win": "夜风里的方向",
+        "lose": "路灯下的人走散了"
+      }
+    },
+    {
+      "id": "ch_2b_quiet",
+      "title": "第二章 · 各自归途",
+      "background": "你选择自己回宿舍，他点点头没有强留。但第二天你在图书馆桌上发现一个牛皮纸袋——里面是一根新的白色快充线，和一张写着‘备用的’的便签。你知道他放的，但你们谁也没有点破。那天下午你经过他座位时，他把耳机摘下来，像是想说什么，最后还是只笑了一下。",
+      "objective": "在保持距离的同时，用一份默契维持那种微妙的安全感",
+      "opening_line": "（第二天中午，你回到座位，看到那根充电线和便签，心里轻轻动了一下。你抬头时，他正在隔了两排的位置低头写代码，仿佛什么都没发生。）",
+      "max_turns": 3,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "收下善意",
+          "description": "玩家没有刻意把充电线还回去，而是接受了这份体贴，用行动表明‘我懂’。",
+          "hit_stat_changes": {
+            "信任度": [10, 16],
+            "压力值": [-6, -2]
+          }
+        },
+        {
+          "id": 2,
+          "title": "制造关联",
+          "description": "玩家主动做一件小事回应他，比如下次路过他桌边时放一颗糖，形成温和的你来我往。",
+          "hit_stat_changes": {
+            "信任度": [12, 18],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "强行拉近",
+          "description": "玩家趁这个机会去主动找他说话，打破了他设定好的‘不点破’距离感。",
+          "hit_stat_changes": {
+            "信任度": [-14, -8],
+            "压力值": [6, 12]
+          }
+        },
+        {
+          "id": 2,
+          "title": "忽略信号",
+          "description": "玩家收下充电线但没有任何回应，让他的试探落空。",
+          "hit_stat_changes": {
+            "信任度": [-10, -4],
+            "压力值": [2, 6]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 52",
+      "lose_condition": "信任度 <= 28",
+      "flags_write": [
+        {
+          "id": "flag_quiet_trust",
+          "trigger": "flag_quiet_trust",
+          "label": "你们用沉默的方式交换了善意",
+          "value": true
+        }
+      ],
+      "flags_read": [
+        {
+          "id": "flag_avoided",
+          "label": "你曾选择保持距离"
+        }
+      ],
+      "exits": [
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 60 且 flag:flag_quiet_trust",
+          "next_chapter": "ch_3_dusk"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 50 且 flag:flag_quiet_trust == false",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 <= 30",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "ai_choice",
+          "candidates": ["ch_3_dusk", "ch_end_fade"],
+          "selection_guidance": "那根充电线像一封没有字的信，你可以选择回信，也可以留在抽屉里。决定权在你。",
+          "fallback_next_chapter": "ch_end_fade"
+        }
+      ],
+      "ending_titles": {
+        "win": "安静的回响",
+        "lose": "空抽屉"
+      }
+    },
+    {
+      "id": "ch_2c_alone",
+      "title": "第二章 · 空座位",
+      "background": "你选择了独自离开，接下来的几天你们在图书馆里坐得很近又很远。他偶尔抬头看你，你没回看，他也就继续低头写他的代码。空气里有某种未讲出口的东西，像一根绷着的线。第四天下午，他经过你桌边时停了一下，声音很轻地问了句什么，你抬起头，发现他手里攥着一包糖。",
+      "objective": "在没有打破沉默的情况下，找到不伤害彼此的落脚点",
+      "opening_line": "（连续三天，你都在他的余光范围内。第四天下午，他经过你桌边时停了一下，声音很轻）那根充电线……你还留着吗？",
+      "max_turns": 3,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "诚实回答",
+          "description": "玩家没有撒谎，坦诚地回应那根充电线的去向，哪怕答案是不在意。",
+          "hit_stat_changes": {
+            "信任度": [6, 10],
+            "压力值": [-4, 0]
+          }
+        },
+        {
+          "id": 2,
+          "title": "打开一扇窗",
+          "description": "玩家在对话中留出一点点余地，不把门关死。",
+          "hit_stat_changes": {
+            "信任度": [8, 12],
+            "压力值": [-2, 2]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "无视好意",
+          "description": "玩家说‘丢了’或‘没注意’，让他彻底死心。",
+          "hit_stat_changes": {
+            "信任度": [-12, -6],
+            "压力值": [4, 8]
+          }
+        },
+        {
+          "id": 2,
+          "title": "假意和解",
+          "description": "玩家说出客气的话却明显在防备，让他察觉你在敷衍。",
+          "hit_stat_changes": {
+            "信任度": [-8, -4],
+            "压力值": [2, 6]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 42",
+      "lose_condition": "信任度 <= 25",
+      "flags_write": [
+        {
+          "id": "flag_lingering",
+          "trigger": "flag_lingering",
+          "label": "你和他都还没有彻底放下那根线",
+          "value": true
+        }
+      ],
+      "flags_read": [
+        {
+          "id": "flag_avoided",
+          "label": "你曾选择保持距离"
+        }
+      ],
+      "exits": [
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 48 且 flag:flag_lingering",
+          "next_chapter": "ch_3_dusk"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 40 且 flag:flag_lingering == false",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 <= 28",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "ai_choice",
+          "candidates": ["ch_3_dusk", "ch_end_fade"],
+          "selection_guidance": "他说那根线时，眼睛里有一点点认真。你接不接，都是一种答案。",
+          "fallback_next_chapter": "ch_end_fade"
+        }
+      ],
+      "ending_titles": {
+        "win": "余音",
+        "lose": "落空的线"
+      }
+    },
+    {
+      "id": "ch_3_dawn",
+      "title": "第三章 · 晨光里",
+      "background": "那晚路灯下的论文没写完，但你们交换了联系方式。第二天清晨，你收到他发来的第一句话——‘醒了吗？我买了豆浆，在你宿舍楼下。’语气平常，像已经做过很多次那样自然。你拉开窗帘，他站在晨光里，抬头朝你笑了一下。风把他的衣角吹起来一点，他手里拎着两杯豆浆，看到你时晃了晃其中一杯。",
+      "objective": "让这份刚刚发芽的关系，在现实里落下一颗脚踏实地的种子",
+      "opening_line": "（你推开宿舍窗，看到他站在楼下，把其中一杯举了举，语调带着早起特有的微微沙哑）不知道你喝不喝甜的，先买了半糖。",
+      "max_turns": 2,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "接受真实",
+          "description": "玩家没有因‘太早’‘太突然’而推拒，而是自然地接住这份日常的温柔。",
+          "hit_stat_changes": {
+            "信任度": [10, 16],
+            "压力值": [-6, -2]
+          }
+        },
+        {
+          "id": 2,
+          "title": "给予回响",
+          "description": "玩家用一句真诚的话或一个细微的动作，让他知道‘你来了，我很开心’。",
+          "hit_stat_changes": {
+            "信任度": [12, 18],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "过度矜持",
+          "description": "玩家因为害羞或紧张而表现得冷淡，让他觉得自己可能越界了。",
+          "hit_stat_changes": {
+            "信任度": [-10, -4],
+            "压力值": [4, 10]
+          }
+        },
+        {
+          "id": 2,
+          "title": "套上期待",
+          "description": "玩家问他‘所以我们现在是什么关系’，把氛围压得太重。",
+          "hit_stat_changes": {
+            "信任度": [-12, -6],
+            "压力值": [6, 12]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 70",
+      "lose_condition": "信任度 <= 35",
+      "flags_write": [],
+      "flags_read": [
+        {
+          "id": "flag_deep_talk",
+          "label": "你们曾交换过一些心事"
+        }
+      ],
+      "exits": [
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 75",
+          "next_chapter": "ch_end_healing"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 55",
+          "next_chapter": "ch_end_together"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 <= 40",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "ai_choice",
+          "candidates": ["ch_end_healing", "ch_end_together"],
+          "selection_guidance": "豆浆还是温的，你可以选择接过，也可以说一句‘我晚点下来’——两种都是真的，只是方向不同。",
+          "fallback_next_chapter": "ch_end_together"
+        }
+      ],
+      "ending_titles": {
+        "win": "晨光正好",
+        "lose": "微凉的半糖"
+      }
+    },
+    {
+      "id": "ch_3_dusk",
+      "title": "第三章 · 傍晚的延伸",
+      "background": "你们没有在路灯下写完那篇论文，但后来你们约了一次‘补写’。在图书馆闭馆后的走廊上，他把电脑转过来给你看——他把那段论文结构帮你重新理了一遍，旁边还留了一行批注：‘下次别拖到闭馆前了。’你笑了，觉得这个人在用他的方式说‘我在’。走廊的灯在他身后投下一圈暖黄，他抬起头，等你开口。",
+      "objective": "在不表白的情况下，让彼此都确定‘这个人值得继续靠近’",
+      "opening_line": "（他坐在走廊的台阶上，把电脑递给你，声音里有一点点藏不住的笑意）你这段逻辑有个漏洞，我帮你补上了。不是要你谢我，是怕你熬夜。",
+      "max_turns": 2,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "自然亲近",
+          "description": "玩家没有刻意划清界限，而是像朋友一样自然地接受他的帮助。",
+          "hit_stat_changes": {
+            "信任度": [10, 14],
+            "压力值": [-4, 0]
+          }
+        },
+        {
+          "id": 2,
+          "title": "留下余味",
+          "description": "玩家在对话结束时，留一句让人想明天再见的话。",
+          "hit_stat_changes": {
+            "信任度": [8, 12],
+            "压力值": [-2, 2]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "急于确认",
+          "description": "玩家问‘你是不是喜欢我’，把还在发酵的氛围提前戳破。",
+          "hit_stat_changes": {
+            "信任度": [-12, -6],
+            "压力值": [6, 12]
+          }
+        },
+        {
+          "id": 2,
+          "title": "漠然收场",
+          "description": "玩家拿了电脑就走，没有留下任何衔接明天的空隙。",
+          "hit_stat_changes": {
+            "信任度": [-8, -2],
+            "压力值": [2, 6]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 62",
+      "lose_condition": "信任度 <= 32",
+      "flags_write": [],
+      "flags_read": [
+        {
+          "id": "flag_quiet_trust",
+          "label": "你们曾用沉默的方式交换过善意"
+        }
+      ],
+      "exits": [
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 68",
+          "next_chapter": "ch_end_together"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 >= 55",
+          "next_chapter": "ch_end_healing"
+        },
+        {
+          "type": "hard_condition",
+          "condition": "信任度 <= 35",
+          "next_chapter": "ch_end_fade"
+        },
+        {
+          "type": "ai_choice",
+          "candidates": ["ch_end_together", "ch_end_healing"],
+          "selection_guidance": "他说‘明天这个时间我还在这’——你可以来，也可以不来。但你知道他是认真的。",
+          "fallback_next_chapter": "ch_end_healing"
+        }
+      ],
+      "ending_titles": {
+        "win": "明天的约定",
+        "lose": "走廊尽头"
+      }
+    },
+    {
+      "id": "ch_end_healing",
+      "title": "终章 · 慢慢靠近",
+      "background": "你们没有急着定义关系，但每个傍晚他都会在图书馆门口等你，有时带一杯热饮，有时只是路过打个招呼。有一天你问他为什么，他想了想说：‘因为你坐在那里的时候，我觉得这个图书馆变亮了一点。’你们都没有说‘喜欢’，但周围的人都知道了。那种感觉像冬天握着一杯温水，不烫手，却暖到指尖。",
+      "objective": "抵达一种无需用力证明的温暖状态",
+      "opening_line": "（他站在图书馆门口，手里拿着两杯热牛奶，看到你时笑了一下）今天不写论文。我带你去吃那家你说过的炒饭。",
+      "max_turns": 2,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "顺其自然",
+          "description": "玩家没有追问关系定义，只是感受当下的舒适。",
+          "hit_stat_changes": {
+            "信任度": [8, 14],
+            "压力值": [-6, -2]
+          }
+        },
+        {
+          "id": 2,
+          "title": "回应日常",
+          "description": "玩家用一句日常的话回应他的日常——‘好，走吧’，像已经演练过很多次。",
+          "hit_stat_changes": {
+            "信任度": [6, 10],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "患得患失",
+          "description": "玩家问‘我们这样算什么’，把已经流淌的河水突然截断。",
+          "hit_stat_changes": {
+            "信任度": [-10, -4],
+            "压力值": [4, 8]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 60",
+      "lose_condition": "信任度 <= 40",
+      "flags_write": [],
+      "flags_read": [],
+      "exits": [],
+      "ending_titles": {
+        "win": "暖光里",
+        "lose": "未竟的傍晚"
+      }
+    },
+    {
+      "id": "ch_end_together",
+      "title": "终章 · 走在同一条路上",
+      "background": "那个路灯下的夜晚之后，你们开始一起吃饭、一起写论文、一起在操场散步。他会在你抱怨的时候递过来耳机说‘听歌，别想了’。有一天你问他：‘你什么时候开始注意我的？’他说：‘你第一次在图书馆睡着的时候，头歪向我的方向。’你们都没有说‘爱’，但脚步已经踩在同一个频率上了。那种默契像是雨后地上浅浅的水洼，一踩就亮。",
+      "objective": "用一个确定的、轻盈的句号，收束这段从图书馆开始的故事",
+      "opening_line": "（他走在你的左边，靠近马路的那一侧。走了几步他忽然说）其实那天我只是想借你充电线，不是有多好心。是怕你走了之后，明天找借口不来图书馆了。",
+      "max_turns": 2,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "共同步伐",
+          "description": "玩家用一句‘那现在呢’或一个微笑，让对话从回忆回到当下。",
+          "hit_stat_changes": {
+            "信任度": [10, 16],
+            "压力值": [-6, -2]
+          }
+        },
+        {
+          "id": 2,
+          "title": "确认此刻",
+          "description": "玩家用一个明确的动作或言语，确认‘现在’的关系是真实的。",
+          "hit_stat_changes": {
+            "信任度": [12, 18],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "比较过去",
+          "description": "玩家问他‘和以前比有什么不同’，让轻松的节奏变重。",
+          "hit_stat_changes": {
+            "信任度": [-8, -2],
+            "压力值": [4, 8]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 62",
+      "lose_condition": "信任度 <= 38",
+      "flags_write": [],
+      "flags_read": [],
+      "exits": [],
+      "ending_titles": {
+        "win": "同频",
+        "lose": "错位的节拍"
+      }
+    },
+    {
+      "id": "ch_end_fade",
+      "title": "终章 · 温柔的疏远",
+      "background": "你们最终没有走到一起，但也没有难堪。他后来出国留学，你留在本校读研。每年图书馆闭馆那天，你都会在微信上收到他发来一句‘今天又闭馆了’。你回一个‘嗯’，然后各自生活。有些人像一道傍晚的走廊灯，不亮也不灭，但你知道它曾经为你开过。",
+      "objective": "在告别中保留一种体面与温度",
+      "opening_line": "（你收到他发来的照片——那张你们第一次坐过的长椅，空无一人，路灯刚亮。下面是他的消息：‘图书馆今天换新台灯了。旧的，我留了一盏。’）",
+      "max_turns": 1,
+      "key_points": [
+        {
+          "id": 1,
+          "title": "体面接受",
+          "description": "玩家没有追问或挽留，而是说一句‘那你要好好放着’。",
+          "hit_stat_changes": {
+            "信任度": [4, 8],
+            "压力值": [-4, 0]
+          }
+        }
+      ],
+      "pitfalls": [
+        {
+          "id": 1,
+          "title": "不甘追责",
+          "description": "玩家追问‘为什么当时不……’，让最后一点温度变凉。",
+          "hit_stat_changes": {
+            "信任度": [-6, -2],
+            "压力值": [4, 8]
+          }
+        }
+      ],
+      "win_condition": "信任度 >= 40",
+      "lose_condition": "信任度 <= 30",
+      "flags_write": [],
+      "flags_read": [],
+      "exits": [],
+      "ending_titles": {
+        "win": "留下来的灯",
+        "lose": "熄灭了"
+      }
+    }
+  ]
+}

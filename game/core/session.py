@@ -65,6 +65,18 @@ def create_session(
     llm_config_director: dict[str, str] | None = None,
     llm_config_roleplay: dict[str, str] | None = None,
     prompt_overrides: dict[str, str] | None = None,
+    *,
+    flags: dict[str, Any] | None = None,
+    chapter_summaries: list[str] | None = None,
+    save_id: str | None = None,
+    history: list[dict[str, Any]] | None = None,
+    stats: dict[str, int] | None = None,
+    turn: int | None = None,
+    hit_key_point_ids: list[str] | None = None,
+    hit_pitfall_ids: list[str] | None = None,
+    game_over: bool = False,
+    ending_text: str | None = None,
+    result: str | None = None,
 ) -> str:
     cleanup_expired()
     if len(_sessions) >= _max_concurrent():
@@ -72,30 +84,43 @@ def create_session(
         raise SessionLimitError("当前体验人数较多，请稍后再试")
 
     session_id = str(uuid.uuid4())
-    stats = {
+    initial_stats = stats or {
         name: cfg["initial"]
         for name, cfg in script["stats"].items()
     }
     now = _now()
+    work_type = script.get("work_type") or "short_form"
     _sessions[session_id] = {
         "script_id": script["id"],
         "script": script,
-        "history": [],
-        "stats": stats,
-        "turn": 0,
-        "game_over": False,
-        "ending_text": None,
-        "result": None,
+        "history": list(history or []),
+        "stats": dict(initial_stats),
+        "turn": int(turn or 0),
+        "game_over": bool(game_over),
+        "ending_text": ending_text,
+        "result": result,
         "llm_config": llm_config,
         "llm_config_director": llm_config_director or llm_config,
         "llm_config_roleplay": llm_config_roleplay or llm_config,
         "prompt_overrides": prompt_overrides,
-        "hit_key_point_ids": [],
-        "hit_pitfall_ids": [],
+        "hit_key_point_ids": list(hit_key_point_ids or []),
+        "hit_pitfall_ids": list(hit_pitfall_ids or []),
+        # Long-form fields (unused for short_form)
+        "work_type": work_type,
+        "current_chapter_id": script.get("chapter_id"),
+        "flags": dict(flags or {}),
+        "chapter_summaries": list(chapter_summaries or []),
+        "save_id": save_id,
         "created_at": now,
         "last_active_at": now,
     }
-    logger.info("session_create id=%s active=%s", session_id[:8], len(_sessions))
+    logger.info(
+        "session_create id=%s work=%s type=%s active=%s",
+        session_id[:8],
+        script["id"],
+        work_type,
+        len(_sessions),
+    )
     return session_id
 
 

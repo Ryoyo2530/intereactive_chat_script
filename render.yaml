@@ -32,3 +32,9 @@ services:
         value: "200"
       - key: SESSION_HARD_MAX_TURNS
         value: "50"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: CONTENT_BACKEND
+        value: supabase

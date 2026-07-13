@@ -29,9 +29,16 @@
 【待命中减分点】
 {{pending_pitfalls}}
 
+【已知剧情事实】
+{{known_flags_summary}}
+
+【前情概要】
+{{chapter_summaries_recent}}
+
 【胜负条件】
 胜利条件：{{win_condition}}
 失败条件：{{lose_condition}}
 当前轮次：{{current_turn}} / {{max_turns}}
 
 请严格遵循导演职责，输出合法 JSON。不要添加任何说明、注释或额外文本。
+{{chapter_wrap_up_instruction}}

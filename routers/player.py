@@ -39,6 +39,7 @@ class StartSessionRequest(BaseModel):
     llm_config: LLMConfigRequest | None = None
     ai_name: str | None = None
     ai_persona: str | None = None
+    save_id: str | None = None
 
 
 class MessageRequest(BaseModel):
@@ -122,6 +123,7 @@ def start_session(body: StartSessionRequest):
             llm_override=override,
             ai_name=body.ai_name,
             ai_persona=body.ai_persona,
+            save_id=body.save_id,
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")

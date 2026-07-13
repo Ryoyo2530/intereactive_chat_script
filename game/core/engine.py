@@ -3,9 +3,9 @@ from collections.abc import Iterator
 from typing import Any
 
 from game import access as invite_access
-from game.core import director, roleplay, condition_parser
+from game.content import save_store, script_repository
+from game.core import condition_parser, director, exits as exit_resolver, flags as flag_helpers, roleplay
 from game.core import session as session_store
-from game.content import script_repository
 from game.llm import client as llm_client
 from game.llm import config as llm_config
 from game.prompts import manager as prompt_manager
@@ -21,6 +21,41 @@ def load_script(script_id: str) -> dict[str, Any]:
     return script_repository.load_one(script_id)
 
 
+def _is_long_form(game_session: dict[str, Any]) -> bool:
+    return (game_session.get("work_type") or game_session.get("script", {}).get("work_type")) == "long_form"
+
+
+def _persist_save(game_session: dict[str, Any]) -> None:
+    """Best-effort save sync for long_form (memory or Supabase)."""
+    if not _is_long_form(game_session):
+        return
+    save_id = game_session.get("save_id")
+    payload = {
+        "current_chapter_id": game_session.get("current_chapter_id")
+        or game_session["script"].get("chapter_id"),
+        "current_turn": game_session.get("turn", 0),
+        "stats": game_session.get("stats") or {},
+        "flags": game_session.get("flags") or {},
+        "chapter_summaries": game_session.get("chapter_summaries") or [],
+        "hit_key_point_ids": game_session.get("hit_key_point_ids") or [],
+        "hit_pitfall_ids": game_session.get("hit_pitfall_ids") or [],
+        "conversation_history": game_session.get("history") or [],
+        "game_over": bool(game_session.get("game_over")),
+        "outcome": game_session.get("result"),
+    }
+    try:
+        if save_id:
+            save_store.update_save(save_id, payload)
+        else:
+            created = save_store.create_save({
+                "work_id": game_session["script_id"],
+                **payload,
+            })
+            game_session["save_id"] = created["id"]
+    except Exception as exc:
+        logger.warning("[engine] persist save failed: %s", exc)
+
+
 def _clamp_stats(stats: dict[str, int], script: dict[str, Any]) -> dict[str, int]:
     clamped = {}
     for name, value in stats.items():
@@ -31,8 +66,12 @@ def _clamp_stats(stats: dict[str, int], script: dict[str, Any]) -> dict[str, int
     return clamped
 
 
-def _evaluate_condition(condition: str, stats: dict[str, int]) -> bool:
-    return condition_parser.evaluate(condition, stats)
+def _evaluate_condition(
+    condition: str,
+    stats: dict[str, int],
+    flags: dict[str, Any] | None = None,
+) -> bool:
+    return condition_parser.evaluate(condition, stats, flags=flags)
 
 
 def _script_ending_text(
@@ -62,10 +101,15 @@ def _script_ending_text(
     return "未能达成目标，对局结束。"
 
 
-def _rule_based_end(script: dict[str, Any], stats: dict[str, int], turn: int) -> tuple[bool, str | None, str | None]:
-    if _evaluate_condition(script["lose_condition"], stats):
+def _rule_based_end(
+    script: dict[str, Any],
+    stats: dict[str, int],
+    turn: int,
+    flags: dict[str, Any] | None = None,
+) -> tuple[bool, str | None, str | None]:
+    if _evaluate_condition(script.get("lose_condition", ""), stats, flags):
         return True, "lose", _script_ending_text(script, "lose")
-    if _evaluate_condition(script["win_condition"], stats):
+    if _evaluate_condition(script.get("win_condition", ""), stats, flags):
         return True, "win", _script_ending_text(script, "win")
     max_turns = session_store.effective_max_turns(script.get("max_turns", 15))
     if turn >= max_turns:
@@ -248,24 +292,121 @@ def _resolve_game_over(
     stats: dict[str, int],
 ) -> tuple[bool, str | None, str | None]:
     script = game_session["script"]
+    flags = game_session.get("flags") or {}
     game_over = bool(director_result.get("game_over"))
     outcome = director_result.get("outcome")
     ending_text = director_result.get("ending_text")
 
     if not game_over:
-        game_over, rule_outcome, rule_ending = _rule_based_end(script, stats, game_session["turn"])
+        game_over, rule_outcome, rule_ending = _rule_based_end(
+            script, stats, game_session["turn"], flags=flags
+        )
         if game_over:
             outcome = rule_outcome
             if not ending_text:
                 ending_text = rule_ending
 
     if game_over and not outcome:
-        if _evaluate_condition(script["win_condition"], stats):
+        if _evaluate_condition(script.get("win_condition", ""), stats, flags):
             outcome = "win"
         else:
             outcome = "lose"
 
     return game_over, outcome, ending_text
+
+
+def _advance_to_chapter(
+    game_session: dict[str, Any],
+    next_chapter_id: str,
+    *,
+    summary: str,
+) -> dict[str, Any]:
+    """Switch session to next chapter after wrap-up; returns opening payload fields."""
+    work_id = game_session["script_id"]
+    next_script = script_repository.load_chapter(work_id, next_chapter_id)
+    summaries = list(game_session.get("chapter_summaries") or [])
+    if summary:
+        summaries.append(summary)
+
+    game_session["script"] = next_script
+    game_session["current_chapter_id"] = next_chapter_id
+    game_session["turn"] = 0
+    game_session["hit_key_point_ids"] = []
+    game_session["hit_pitfall_ids"] = []
+    game_session["history"] = []
+    game_session["chapter_summaries"] = summaries
+    game_session["game_over"] = False
+    game_session["ending_text"] = None
+    game_session["result"] = None
+
+    opening = next_script.get("opening_line", "……")
+    game_session["history"].append({
+        "role": "assistant",
+        "content": opening,
+        "character": next_script["ai_character"]["name"],
+    })
+    _persist_save(game_session)
+    return {
+        "next_chapter_id": next_chapter_id,
+        "next_opening_line": opening,
+        "chapter_title": next_script.get("chapter_title") or next_script.get("title"),
+        "max_turns": session_store.effective_max_turns(next_script.get("max_turns", 15)),
+    }
+
+
+def _handle_long_form_chapter_end(
+    game_session: dict[str, Any],
+    director_result: dict[str, Any],
+    outcome: str | None,
+    ending_text: str | None,
+    director_cfg: llm_config.LLMConfig,
+) -> dict[str, Any]:
+    """Apply wrap-up, flags, exits. Mutates session. Returns long-form response extras."""
+    wrap = flag_helpers.normalize_wrap_up(director_result.get("chapter_wrap_up"))
+    script = game_session["script"]
+
+    game_session["flags"] = flag_helpers.apply_triggered_flags(
+        game_session.get("flags") or {},
+        script.get("flags_write") or [],
+        wrap["triggered_flags"],
+    )
+
+    exits = exit_resolver.normalize_exits(script.get("exits"))
+    next_chapter_id = exit_resolver.resolve_next_chapter(
+        exits,
+        stats=game_session.get("stats") or {},
+        flags=game_session.get("flags") or {},
+        chapter_summary=wrap["summary"],
+        config=director_cfg,
+    )
+
+    if next_chapter_id:
+        advanced = _advance_to_chapter(
+            game_session, next_chapter_id, summary=wrap["summary"]
+        )
+        return {
+            "chapter_completed": True,
+            "work_completed": False,
+            "chapter_summary": wrap["summary"],
+            "flags": game_session.get("flags") or {},
+            **advanced,
+        }
+
+    # Terminal chapter / no exits → work completed
+    summaries = list(game_session.get("chapter_summaries") or [])
+    summaries.append(wrap["summary"])
+    game_session["chapter_summaries"] = summaries
+    game_session["game_over"] = True
+    game_session["ending_text"] = ending_text
+    game_session["result"] = outcome
+    _persist_save(game_session)
+    return {
+        "chapter_completed": True,
+        "work_completed": True,
+        "next_chapter_id": None,
+        "chapter_summary": wrap["summary"],
+        "flags": game_session.get("flags") or {},
+    }
 
 
 def _build_response(
@@ -278,22 +419,35 @@ def _build_response(
     emotion_tag: str = "",
     hit_key_points: list | None = None,
     hit_pitfalls: list | None = None,
+    *,
+    long_form_extras: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     script = game_session["script"]
+    extras = long_form_extras or {}
+    advancing = bool(extras.get("next_chapter_id") and not extras.get("work_completed"))
 
-    if not game_over:
+    if advancing:
+        # Chapter advanced: opening already in history; expose it as reply.
+        reply = extras.get("next_opening_line") or reply
+        game_over = False
+        outcome = None
+        ending_text = None
+    elif not game_over and reply:
         game_session["history"].append({
             "role": "assistant",
             "content": reply,
             "character": script["ai_character"]["name"],
         })
 
-    if game_over:
+    if game_over and not advancing:
         game_session["game_over"] = True
         game_session["ending_text"] = ending_text
         game_session["result"] = outcome
 
-    return {
+    if _is_long_form(game_session) and not game_over and not advancing:
+        _persist_save(game_session)
+
+    response = {
         "reply": "" if game_over else reply,
         "emotion_tag": emotion_tag,
         "stats": game_session["stats"],
@@ -307,6 +461,119 @@ def _build_response(
         "result": outcome,
         "ending_text": ending_text,
     }
+    if _is_long_form(game_session) or extras:
+        response.update({
+            "work_type": "long_form" if _is_long_form(game_session) else "short_form",
+            "save_id": game_session.get("save_id"),
+            "current_chapter_id": game_session.get("current_chapter_id")
+            or script.get("chapter_id"),
+            "flags": game_session.get("flags") or {},
+            "chapter_completed": extras.get("chapter_completed", False),
+            "work_completed": extras.get("work_completed", False),
+            "next_chapter_id": extras.get("next_chapter_id"),
+            "chapter_summary": extras.get("chapter_summary"),
+            "chapter_title": extras.get("chapter_title")
+            or script.get("chapter_title")
+            or script.get("title"),
+        })
+        if extras.get("max_turns"):
+            response["max_turns"] = extras["max_turns"]
+    return response
+
+
+def _finish_after_director(
+    game_session: dict[str, Any],
+    director_result: dict[str, Any],
+    stats: dict[str, int],
+    stat_changes: dict[str, Any],
+    director_cfg: llm_config.LLMConfig,
+    roleplay_cfg: llm_config.LLMConfig,
+    player_message: str,
+    *,
+    debug: bool = False,
+    director_meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Shared post-director path for process_message / process_message_debug."""
+    game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
+    hit_kp = director_result.get("hit_key_points") or []
+    hit_pf = director_result.get("hit_pitfalls") or []
+
+    long_form_extras: dict[str, Any] | None = None
+    if game_over and _is_long_form(game_session):
+        # Ensure wrap_up exists even if director omitted it (rule-based end).
+        if not director_result.get("chapter_wrap_up"):
+            director_result["chapter_wrap_up"] = flag_helpers.normalize_wrap_up(None)
+        long_form_extras = _handle_long_form_chapter_end(
+            game_session, director_result, outcome, ending_text, director_cfg
+        )
+        work_done = bool(long_form_extras.get("work_completed"))
+        response = _build_response(
+            game_session,
+            "" if work_done else (long_form_extras.get("next_opening_line") or ""),
+            stat_changes,
+            work_done,
+            outcome if work_done else None,
+            ending_text if work_done else None,
+            hit_key_points=hit_kp,
+            hit_pitfalls=hit_pf,
+            long_form_extras=long_form_extras,
+        )
+        if debug:
+            response["_debug"] = {
+                "director": _agent_debug_payload(director_result, director_meta or {}, director_cfg),
+                "roleplay": None,
+                "llm_config": {
+                    "director": director_cfg.public_dict(),
+                    "roleplay": roleplay_cfg.public_dict(),
+                },
+            }
+        return response
+
+    if game_over:
+        response = _build_response(
+            game_session, "", stat_changes, True, outcome, ending_text,
+            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+        )
+        if debug:
+            response["_debug"] = {
+                "director": _agent_debug_payload(director_result, director_meta or {}, director_cfg),
+                "roleplay": None,
+                "llm_config": {
+                    "director": director_cfg.public_dict(),
+                    "roleplay": roleplay_cfg.public_dict(),
+                },
+            }
+        return response
+
+    if debug:
+        roleplay_result, roleplay_meta = roleplay.respond_debug(
+            game_session, player_message, director_result.get("reaction") or {}, roleplay_cfg
+        )
+    else:
+        roleplay_result = roleplay.respond(
+            game_session,
+            player_message,
+            director_result.get("reaction") or {},
+            roleplay_cfg,
+        )
+        roleplay_meta = None
+
+    reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
+    emotion_tag = roleplay_result.get("emotion_tag", "")
+    response = _build_response(
+        game_session, reply, stat_changes, False, None, None, emotion_tag,
+        hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+    )
+    if debug:
+        response["_debug"] = {
+            "director": _agent_debug_payload(director_result, director_meta or {}, director_cfg),
+            "roleplay": _agent_debug_payload(roleplay_result, roleplay_meta or {}, roleplay_cfg),
+            "llm_config": {
+                "director": director_cfg.public_dict(),
+                "roleplay": roleplay_cfg.public_dict(),
+            },
+        }
+    return response
 
 
 def start_game(
@@ -316,13 +583,30 @@ def start_game(
     prompt_overrides: dict[str, str] | None = None,
     ai_name: str | None = None,
     ai_persona: str | None = None,
+    save_id: str | None = None,
 ) -> dict[str, Any]:
     import copy
     director_cfg, roleplay_cfg = llm_config.resolve_dev_agent_configs(llm_override)
+
+    resume_save: dict[str, Any] | None = None
+    if save_id:
+        resume_save = save_store.get_save(save_id)
+        if not resume_save:
+            raise ValueError(f"Save not found: {save_id}")
+        if resume_save.get("work_id") != script_id:
+            raise ValueError("save_id does not belong to this work")
+
     if script_override:
         script = copy.deepcopy(script_override)
         if not script.get("id"):
             script["id"] = script_id
+    elif resume_save:
+        chapter_id = resume_save.get("current_chapter_id")
+        script = copy.deepcopy(
+            script_repository.load_chapter(script_id, chapter_id)
+            if chapter_id
+            else load_script(script_id)
+        )
     else:
         script = copy.deepcopy(load_script(script_id))
 
@@ -331,28 +615,70 @@ def start_game(
     if ai_persona and ai_persona.strip():
         script["ai_character"]["persona"] = ai_persona.strip()
 
-    session_id = session_store.create_session(
-        script,
-        llm_config=director_cfg.as_dict(),
-        llm_config_director=director_cfg.as_dict(),
-        llm_config_roleplay=roleplay_cfg.as_dict(),
-        prompt_overrides=prompt_overrides,
-    )
+    work_type = script.get("work_type") or "short_form"
+    session_kwargs: dict[str, Any] = {
+        "llm_config": director_cfg.as_dict(),
+        "llm_config_director": director_cfg.as_dict(),
+        "llm_config_roleplay": roleplay_cfg.as_dict(),
+        "prompt_overrides": prompt_overrides,
+    }
+
+    if resume_save:
+        session_kwargs.update({
+            "flags": resume_save.get("flags") or {},
+            "chapter_summaries": resume_save.get("chapter_summaries") or [],
+            "save_id": resume_save["id"],
+            "history": resume_save.get("conversation_history") or [],
+            "stats": resume_save.get("stats") or None,
+            "turn": resume_save.get("current_turn") or 0,
+            "hit_key_point_ids": [str(x) for x in (resume_save.get("hit_key_point_ids") or [])],
+            "hit_pitfall_ids": [str(x) for x in (resume_save.get("hit_pitfall_ids") or [])],
+            "game_over": bool(resume_save.get("game_over")),
+            "ending_text": None,
+            "result": resume_save.get("outcome"),
+        })
+
+    session_id = session_store.create_session(script, **session_kwargs)
     invite_access.runtime_stats.record_session_start()
     game_session = session_store.get_session(session_id)
+
     opening = script.get("opening_line", "……")
-    game_session["history"].append({
-        "role": "assistant",
-        "content": opening,
-        "character": script["ai_character"]["name"],
-    })
+    if not resume_save or not game_session["history"]:
+        game_session["history"].append({
+            "role": "assistant",
+            "content": opening,
+            "character": script["ai_character"]["name"],
+        })
+    else:
+        # Resume: opening_line is last assistant line if present, else chapter opening.
+        for entry in reversed(game_session["history"]):
+            if entry.get("role") == "assistant":
+                opening = entry.get("content") or opening
+                break
+
+    if work_type == "long_form" and not resume_save:
+        created = save_store.create_save({
+            "work_id": script_id,
+            "current_chapter_id": script.get("chapter_id"),
+            "current_turn": 0,
+            "stats": game_session["stats"],
+            "flags": {},
+            "chapter_summaries": [],
+            "hit_key_point_ids": [],
+            "hit_pitfall_ids": [],
+            "conversation_history": game_session["history"],
+            "game_over": False,
+            "outcome": None,
+        })
+        game_session["save_id"] = created["id"]
+
     max_turns = session_store.effective_max_turns(script.get("max_turns", 15))
-    return {
+    result = {
         "session_id": session_id,
         "script": {
             "id": script["id"],
             "title": script["title"],
-            "objective": script["objective"],
+            "objective": script.get("objective", ""),
             "max_turns": max_turns,
             "ai_character_name": script["ai_character"]["name"],
             "player_character_name": script["player_character"]["name"],
@@ -363,6 +689,8 @@ def start_game(
             "chapter_title": script.get("chapter_title", script["title"]),
             "max_hints": script.get("max_hints", 3),
             "origin_tag": script.get("origin_tag", ""),
+            "work_type": work_type,
+            "chapter_id": script.get("chapter_id"),
         },
         "opening_line": opening,
         "stats": game_session["stats"],
@@ -371,7 +699,17 @@ def start_game(
             "director": director_cfg.public_dict(),
             "roleplay": roleplay_cfg.public_dict(),
         },
+        "history": game_session["history"] if resume_save else None,
     }
+    if work_type == "long_form":
+        result.update({
+            "save_id": game_session.get("save_id"),
+            "flags": game_session.get("flags") or {},
+            "chapter_summaries": game_session.get("chapter_summaries") or [],
+            "current_chapter_id": game_session.get("current_chapter_id") or script.get("chapter_id"),
+            "resumed": bool(resume_save),
+        })
+    return result
 
 
 def process_message(session_id: str, message: str) -> dict[str, Any]:
@@ -387,29 +725,14 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
 
     director_result = director.judge(game_session, player_message, director_cfg)
     stats, stat_changes = _process_director_turn(game_session, director_result)
-
-    game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
-    hit_kp = director_result.get("hit_key_points") or []
-    hit_pf = director_result.get("hit_pitfalls") or []
-
-    if game_over:
-        return _build_response(
-            game_session, "", stat_changes, True, outcome, ending_text,
-            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
-        )
-
-    reaction = director_result.get("reaction") or {}
-    roleplay_result = roleplay.respond(
+    return _finish_after_director(
         game_session,
-        player_message,
-        reaction,
+        director_result,
+        stats,
+        stat_changes,
+        director_cfg,
         roleplay_cfg,
-    )
-    reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
-    emotion_tag = roleplay_result.get("emotion_tag", "")
-    return _build_response(
-        game_session, reply, stat_changes, False, None, None, emotion_tag,
-        hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+        player_message,
     )
 
 
@@ -445,45 +768,17 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
 
     director_result, director_meta = director.judge_debug(game_session, player_message, director_cfg)
     stats, stat_changes = _process_director_turn(game_session, director_result)
-
-    game_over, outcome, ending_text = _resolve_game_over(game_session, director_result, stats)
-    hit_kp = director_result.get("hit_key_points") or []
-    hit_pf = director_result.get("hit_pitfalls") or []
-
-    if game_over:
-        response = _build_response(
-            game_session, "", stat_changes, True, outcome, ending_text,
-            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
-        )
-        response["_debug"] = {
-            "director": _agent_debug_payload(director_result, director_meta, director_cfg),
-            "roleplay": None,
-            "llm_config": {
-                "director": director_cfg.public_dict(),
-                "roleplay": roleplay_cfg.public_dict(),
-            },
-        }
-        return response
-
-    reaction = director_result.get("reaction") or {}
-    roleplay_result, roleplay_meta = roleplay.respond_debug(
-        game_session, player_message, reaction, roleplay_cfg
+    return _finish_after_director(
+        game_session,
+        director_result,
+        stats,
+        stat_changes,
+        director_cfg,
+        roleplay_cfg,
+        player_message,
+        debug=True,
+        director_meta=director_meta,
     )
-    reply = roleplay_result.get("reply", roleplay.ROLEPLAY_FALLBACK["reply"])
-    emotion_tag = roleplay_result.get("emotion_tag", "")
-    response = _build_response(
-        game_session, reply, stat_changes, False, None, None, emotion_tag,
-        hit_key_points=hit_kp, hit_pitfalls=hit_pf,
-    )
-    response["_debug"] = {
-        "director": _agent_debug_payload(director_result, director_meta, director_cfg),
-        "roleplay": _agent_debug_payload(roleplay_result, roleplay_meta, roleplay_cfg),
-        "llm_config": {
-            "director": director_cfg.public_dict(),
-            "roleplay": roleplay_cfg.public_dict(),
-        },
-    }
-    return response
 
 
 def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, Any]]:
@@ -525,10 +820,29 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     hit_pf = director_result.get("hit_pitfalls") or []
 
     if game_over:
-        response = _build_response(
-            game_session, "", stat_changes, True, outcome, ending_text,
-            hit_key_points=hit_kp, hit_pitfalls=hit_pf,
-        )
+        if _is_long_form(game_session):
+            if not director_result.get("chapter_wrap_up"):
+                director_result["chapter_wrap_up"] = flag_helpers.normalize_wrap_up(None)
+            extras = _handle_long_form_chapter_end(
+                game_session, director_result, outcome, ending_text, director_cfg
+            )
+            work_done = bool(extras.get("work_completed"))
+            response = _build_response(
+                game_session,
+                "" if work_done else (extras.get("next_opening_line") or ""),
+                stat_changes,
+                work_done,
+                outcome if work_done else None,
+                ending_text if work_done else None,
+                hit_key_points=hit_kp,
+                hit_pitfalls=hit_pf,
+                long_form_extras=extras,
+            )
+        else:
+            response = _build_response(
+                game_session, "", stat_changes, True, outcome, ending_text,
+                hit_key_points=hit_kp, hit_pitfalls=hit_pf,
+            )
         yield {"type": "done", **response}
         return
 

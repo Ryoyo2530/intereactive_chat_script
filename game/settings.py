@@ -26,6 +26,11 @@ class AppSettings(BaseSettings):
     session_ttl_minutes: int = Field(default=30, validation_alias="SESSION_TTL_MINUTES")
     session_max_concurrent: int = Field(default=200, validation_alias="SESSION_MAX_CONCURRENT")
     session_hard_max_turns: int = Field(default=50, validation_alias="SESSION_HARD_MAX_TURNS")
+    # Content persistence (v2.0). Leave URL/KEY empty to keep local scripts/*.json.
+    supabase_url: str = Field(default="", validation_alias="SUPABASE_URL")
+    supabase_key: str = Field(default="", validation_alias="SUPABASE_KEY")
+    # file | supabase | "" (auto: supabase when credentials present, else file)
+    content_backend: str = Field(default="", validation_alias="CONTENT_BACKEND")
 
 
 @lru_cache

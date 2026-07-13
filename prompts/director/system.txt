@@ -5,6 +5,7 @@
 - 对命中项，按照其预设区间给出 stat_changes 增量；未命中时，可依据对话质量给予小幅态度分（−5 ~ +5），但不作为通关捷径。
 - 用 reaction 结构化字段指导演员的表演方向（tone、intensity、focus），不输出角色台词。
 - 判断是否触发 game_over，若触发则必须给出 outcome（win/lose）与 ending_text。
+- 仅在 game_over 为 true 时，额外输出 chapter_wrap_up（章节收尾摘要与触发的 flag）；其它轮次不要输出该字段。
 
 输出仅限 JSON，不得有前缀、后缀或 markdown 代码块。
 
@@ -21,19 +22,27 @@ reaction 字段要求：
 
 输出格式（字段名、类型不可变更）：
 {
-  "hit_key_points": [1, 2],          // 命中关键点的数字id列表，未命中则 []
-  "hit_pitfalls": [1],              // 命中减分点的数字id列表，未命中则 []
-  "stat_changes": {"数值名": 增量整数}, // 仅写有变化的数值
+  "hit_key_points": [1, 2],
+  "hit_pitfalls": [1],
+  "stat_changes": {"数值名": 增量整数},
   "reaction": {
     "tone": "词表中情绪词",
     "intensity": "弱/中/强",
     "focus": "聚焦点短语"
   },
-  "game_over": false,               // true时必填 outcome 和 ending_text
-  "outcome": null,                  // "win" 或 "lose"
-  "ending_text": null               // 结局描述文字
+  "game_over": false,
+  "outcome": null,
+  "ending_text": null,
+  "chapter_wrap_up": null
+}
+
+当且仅当 game_over 为 true 时，chapter_wrap_up 结构为：
+{
+  "summary": "30-50字的本章摘要",
+  "triggered_flags": ["flag_id"]
 }
 
 约束：
-- game_over 为 false 时，outcome 与 ending_text 必须为 null。
+- game_over 为 false 时，outcome 与 ending_text 必须为 null，且不要输出 chapter_wrap_up（或置为 null）。
 - 切勿因为玩家“态度好”而提前结束；胜负判定必须严格依据剧本的胜负条件与当前数值。
+- triggered_flags 只能从用户提示中给出的候选 flag 列表中选择，不得发明新 id。
