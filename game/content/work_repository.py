@@ -13,6 +13,7 @@ from game.content.work_mapper import (
     work_to_summary,
 )
 from game.db.supabase_client import get_supabase
+from game.db.supabase_retry import supabase_execute
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +41,19 @@ def list_works(*, status: str | None = "published") -> list[dict[str, Any]]:
     query = client.table("works").select(_WORK_COLUMNS).order("id")
     if status:
         query = query.eq("status", status)
-    response = query.execute()
+    response = supabase_execute(query, action="list works")
     _raise_from_response("list works", response)
     return list(response.data or [])
 
 
 def get_work(work_id: str) -> dict[str, Any] | None:
     client = get_supabase()
-    response = (
+    response = supabase_execute(
         client.table("works")
         .select(_WORK_COLUMNS)
         .eq("id", work_id)
-        .limit(1)
-        .execute()
+        .limit(1),
+        action=f"get work {work_id}",
     )
     _raise_from_response(f"get work {work_id}", response)
     rows = response.data or []
@@ -61,12 +62,12 @@ def get_work(work_id: str) -> dict[str, Any] | None:
 
 def get_chapter(chapter_id: str) -> dict[str, Any] | None:
     client = get_supabase()
-    response = (
+    response = supabase_execute(
         client.table("chapters")
         .select(_CHAPTER_COLUMNS)
         .eq("id", chapter_id)
-        .limit(1)
-        .execute()
+        .limit(1),
+        action=f"get chapter {chapter_id}",
     )
     _raise_from_response(f"get chapter {chapter_id}", response)
     rows = response.data or []
@@ -75,11 +76,11 @@ def get_chapter(chapter_id: str) -> dict[str, Any] | None:
 
 def get_chapters_for_work(work_id: str) -> list[dict[str, Any]]:
     client = get_supabase()
-    response = (
+    response = supabase_execute(
         client.table("chapters")
         .select(_CHAPTER_COLUMNS)
-        .eq("work_id", work_id)
-        .execute()
+        .eq("work_id", work_id),
+        action=f"list chapters for {work_id}",
     )
     _raise_from_response(f"list chapters for {work_id}", response)
     return list(response.data or [])
@@ -106,10 +107,16 @@ def save_long_form_document(data: dict[str, Any], *, status: str = "published") 
     # Strip file-only helper keys before upsert.
     work_row = {k: v for k, v in work.items() if not k.startswith("_")}
     client = get_supabase()
-    work_resp = client.table("works").upsert(work_row, on_conflict="id").execute()
+    work_resp = supabase_execute(
+        client.table("works").upsert(work_row, on_conflict="id"),
+        action=f"upsert work {work_row['id']}",
+    )
     _raise_from_response(f"upsert work {work_row['id']}", work_resp)
     for chapter in chapters:
-        chapter_resp = client.table("chapters").upsert(chapter, on_conflict="id").execute()
+        chapter_resp = supabase_execute(
+            client.table("chapters").upsert(chapter, on_conflict="id"),
+            action=f"upsert chapter {chapter['id']}",
+        )
         _raise_from_response(f"upsert chapter {chapter['id']}", chapter_resp)
     logger.info(
         "[work_repository] saved long_form work=%s chapters=%s",
@@ -127,11 +134,11 @@ def load_all_scripts(*, status: str | None = None) -> dict[str, dict[str, Any]]:
     client = get_supabase()
     work_ids = [w["id"] for w in works]
     # PostgREST `in` filter; batch if the list grows large later.
-    response = (
+    response = supabase_execute(
         client.table("chapters")
         .select(_CHAPTER_COLUMNS)
-        .in_("work_id", work_ids)
-        .execute()
+        .in_("work_id", work_ids),
+        action="list chapters",
     )
     _raise_from_response("list chapters", response)
     chapters_by_work: dict[str, list[dict[str, Any]]] = {}
@@ -162,10 +169,16 @@ def save_script(script: dict[str, Any], *, status: str = "published") -> None:
     work, chapter = script_to_work_chapter(script, work_type="short_form", status=status)
     client = get_supabase()
 
-    work_resp = client.table("works").upsert(work, on_conflict="id").execute()
+    work_resp = supabase_execute(
+        client.table("works").upsert(work, on_conflict="id"),
+        action=f"upsert work {work['id']}",
+    )
     _raise_from_response(f"upsert work {work['id']}", work_resp)
 
-    chapter_resp = client.table("chapters").upsert(chapter, on_conflict="id").execute()
+    chapter_resp = supabase_execute(
+        client.table("chapters").upsert(chapter, on_conflict="id"),
+        action=f"upsert chapter {chapter['id']}",
+    )
     _raise_from_response(f"upsert chapter {chapter['id']}", chapter_resp)
 
     logger.info("[work_repository] saved work=%s chapter=%s", work["id"], chapter["id"])
@@ -176,6 +189,9 @@ def delete_script(work_id: str) -> None:
     if not get_work(work_id):
         raise FileNotFoundError(f"Script not found: {work_id}")
     client = get_supabase()
-    response = client.table("works").delete().eq("id", work_id).execute()
+    response = supabase_execute(
+        client.table("works").delete().eq("id", work_id),
+        action=f"delete work {work_id}",
+    )
     _raise_from_response(f"delete work {work_id}", response)
     logger.info("[work_repository] deleted work %s", work_id)

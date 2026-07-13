@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from game.db.supabase_client import get_supabase
+from game.db.supabase_retry import supabase_execute
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,10 @@ def create_save(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("id"):
         row["id"] = payload["id"]
 
-    response = client.table("saves").insert(row).execute()
+    response = supabase_execute(
+        client.table("saves").insert(row),
+        action="create save",
+    )
     _raise_from_response("create save", response)
     data = (response.data or [None])[0]
     if not data:
@@ -56,12 +60,12 @@ def create_save(payload: dict[str, Any]) -> dict[str, Any]:
 
 def get_save(save_id: str) -> dict[str, Any] | None:
     client = get_supabase()
-    response = (
+    response = supabase_execute(
         client.table("saves")
         .select(_SAVE_COLUMNS)
         .eq("id", save_id)
-        .limit(1)
-        .execute()
+        .limit(1),
+        action=f"get save {save_id}",
     )
     _raise_from_response(f"get save {save_id}", response)
     rows = response.data or []
@@ -89,7 +93,10 @@ def update_save(save_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         return existing
 
     client = get_supabase()
-    response = client.table("saves").update(patch).eq("id", save_id).execute()
+    response = supabase_execute(
+        client.table("saves").update(patch).eq("id", save_id),
+        action=f"update save {save_id}",
+    )
     _raise_from_response(f"update save {save_id}", response)
     rows = response.data or []
     if not rows:
@@ -102,19 +109,22 @@ def delete_save(save_id: str) -> None:
     existing = get_save(save_id)
     if not existing:
         raise FileNotFoundError(f"Save not found: {save_id}")
-    response = client.table("saves").delete().eq("id", save_id).execute()
+    response = supabase_execute(
+        client.table("saves").delete().eq("id", save_id),
+        action=f"delete save {save_id}",
+    )
     _raise_from_response(f"delete save {save_id}", response)
     logger.info("[save_repository] deleted save %s", save_id)
 
 
 def list_saves_for_work(work_id: str) -> list[dict[str, Any]]:
     client = get_supabase()
-    response = (
+    response = supabase_execute(
         client.table("saves")
         .select(_SAVE_COLUMNS)
         .eq("work_id", work_id)
-        .order("updated_at", desc=True)
-        .execute()
+        .order("updated_at", desc=True),
+        action=f"list saves for {work_id}",
     )
     _raise_from_response(f"list saves for {work_id}", response)
     return list(response.data or [])
