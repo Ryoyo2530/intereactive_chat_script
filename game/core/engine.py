@@ -14,7 +14,100 @@ logger = logging.getLogger(__name__)
 
 
 def list_scripts() -> list[dict[str, Any]]:
-    return script_repository.list_summary()
+    from game.content import work_progress
+    from game.content.work_meta import progress_status
+
+    summaries = script_repository.list_summary()
+    enriched: list[dict[str, Any]] = []
+    for item in summaries:
+        row = dict(item)
+        work_type = row.get("work_type") or "short_form"
+        row["work_type"] = work_type
+        if work_type != "long_form":
+            enriched.append(row)
+            continue
+
+        work_id = row["id"]
+        chapter_ids = _chapter_ids_for_work(work_id)
+        chapter_count = len(chapter_ids)
+        save = save_store.get_active_save_for_work(work_id)
+        visited = list((save or {}).get("visited_chapter_ids") or [])
+        if save and save.get("current_chapter_id") and save["current_chapter_id"] not in visited:
+            visited.append(save["current_chapter_id"])
+        status = progress_status(save=save, visited_count=len(visited))
+        row["progress_status"] = status
+        row["save_id"] = (save or {}).get("id")
+
+        if status == "not_started":
+            row["chapter_count"] = None
+            row["visited_count"] = 0
+            row["current_chapter_index"] = None
+        else:
+            row["chapter_count"] = chapter_count
+            row["visited_count"] = len(visited)
+            current_id = (save or {}).get("current_chapter_id")
+            if current_id and current_id in chapter_ids:
+                row["current_chapter_index"] = chapter_ids.index(current_id) + 1
+            else:
+                row["current_chapter_index"] = max(len(visited), 1)
+
+        # Ending discovery (cross-run)
+        try:
+            progress = work_progress.get_progress(work_id)
+            discovered = set(progress.get("discovered_endings") or [])
+        except Exception:
+            discovered = set()
+        known = set(_known_endings_for_work(work_id))
+        if known:
+            row["all_endings_discovered"] = known.issubset(discovered)
+        else:
+            row["all_endings_discovered"] = False
+        enriched.append(row)
+    return enriched
+
+
+def _chapter_ids_for_work(work_id: str) -> list[str]:
+    """Resolve ordered chapter ids for a work (file or supabase)."""
+    try:
+        from game.content.script_repository import _backend, _file_long_forms, _get_cache
+
+        if _backend() == "supabase":
+            from game.content import work_repository
+
+            work = work_repository.get_work(work_id)
+            if work and work.get("chapter_ids"):
+                return [str(x) for x in work["chapter_ids"]]
+            chapters = work_repository.get_chapters_for_work(work_id)
+            return [str(c["id"]) for c in chapters]
+        _get_cache()
+        pack = _file_long_forms.get(work_id)
+        if pack:
+            work = pack["work"]
+            ids = work.get("chapter_ids") or list(pack["chapters"].keys())
+            return [str(x) for x in ids]
+    except Exception as exc:
+        logger.warning("[engine] chapter_ids lookup failed for %s: %s", work_id, exc)
+    return []
+
+
+def _known_endings_for_work(work_id: str) -> list[str]:
+    from game.content.work_meta import known_ending_chapter_ids
+
+    try:
+        from game.content.script_repository import _backend, _file_long_forms, _get_cache
+
+        if _backend() == "supabase":
+            from game.content import work_repository
+
+            chapters = work_repository.get_chapters_for_work(work_id)
+            return known_ending_chapter_ids(chapters)
+        _get_cache()
+        pack = _file_long_forms.get(work_id)
+        if pack:
+            return known_ending_chapter_ids(list(pack["chapters"].values()))
+    except Exception as exc:
+        logger.warning("[engine] known endings lookup failed for %s: %s", work_id, exc)
+    return []
 
 
 def load_script(script_id: str) -> dict[str, Any]:
@@ -42,7 +135,11 @@ def _persist_save(game_session: dict[str, Any]) -> None:
         "conversation_history": game_session.get("history") or [],
         "game_over": bool(game_session.get("game_over")),
         "outcome": game_session.get("result"),
+        "visited_chapter_ids": game_session.get("visited_chapter_ids") or [],
+        "had_branch_choice": bool(game_session.get("had_branch_choice")),
     }
+    if game_session.get("user_id"):
+        payload["user_id"] = game_session["user_id"]
     try:
         if save_id:
             save_store.update_save(save_id, payload)
@@ -320,13 +417,24 @@ def _advance_to_chapter(
     next_chapter_id: str,
     *,
     summary: str,
+    from_chapter: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Switch session to next chapter after wrap-up; returns opening payload fields."""
+    from game.content.work_meta import chapter_has_branching_exits
+
     work_id = game_session["script_id"]
+    if chapter_has_branching_exits(from_chapter):
+        game_session["had_branch_choice"] = True
+
     next_script = script_repository.load_chapter(work_id, next_chapter_id)
     summaries = list(game_session.get("chapter_summaries") or [])
     if summary:
         summaries.append(summary)
+
+    visited = list(game_session.get("visited_chapter_ids") or [])
+    if next_chapter_id not in visited:
+        visited.append(next_chapter_id)
+    game_session["visited_chapter_ids"] = visited
 
     game_session["script"] = next_script
     game_session["current_chapter_id"] = next_chapter_id
@@ -338,6 +446,11 @@ def _advance_to_chapter(
     game_session["game_over"] = False
     game_session["ending_text"] = None
     game_session["result"] = None
+    # Reset pending state and snapshot stats for the new chapter
+    game_session["pending_next_chapter_id"] = None
+    game_session["pending_chapter_summary"] = None
+    game_session["pending_flags"] = None
+    game_session["chapter_start_stats"] = dict(game_session.get("stats") or {})
 
     opening = next_script.get("opening_line", "……")
     game_session["history"].append({
@@ -351,7 +464,22 @@ def _advance_to_chapter(
         "next_opening_line": opening,
         "chapter_title": next_script.get("chapter_title") or next_script.get("title"),
         "max_turns": session_store.effective_max_turns(next_script.get("max_turns", 15)),
+        "visited_chapter_ids": visited,
+        "had_branch_choice": bool(game_session.get("had_branch_choice")),
     }
+
+
+def _stat_changes_summary(
+    start: dict[str, int],
+    current: dict[str, int],
+) -> list[dict[str, Any]]:
+    """Return only the stats that changed between chapter start and now."""
+    result = []
+    for name, current_val in current.items():
+        start_val = start.get(name, current_val)
+        if start_val != current_val:
+            result.append({"stat": name, "from": start_val, "to": current_val})
+    return result
 
 
 def _handle_long_form_chapter_end(
@@ -361,51 +489,95 @@ def _handle_long_form_chapter_end(
     ending_text: str | None,
     director_cfg: llm_config.LLMConfig,
 ) -> dict[str, Any]:
-    """Apply wrap-up, flags, exits. Mutates session. Returns long-form response extras."""
+    """Compute wrap-up and exits; for non-terminal chapters store pending advance state.
+
+    No longer calls _advance_to_chapter() immediately — that is deferred until the
+    player confirms on the chapter settlement screen via the /chapters/advance endpoint.
+    """
+    from game.content import work_progress
+
     wrap = flag_helpers.normalize_wrap_up(director_result.get("chapter_wrap_up"))
     script = game_session["script"]
+    leaving_chapter = dict(script)
 
-    game_session["flags"] = flag_helpers.apply_triggered_flags(
+    new_flags = flag_helpers.apply_triggered_flags(
         game_session.get("flags") or {},
         script.get("flags_write") or [],
         wrap["triggered_flags"],
     )
+    game_session["flags"] = new_flags
 
     exits = exit_resolver.normalize_exits(script.get("exits"))
     next_chapter_id = exit_resolver.resolve_next_chapter(
         exits,
         stats=game_session.get("stats") or {},
-        flags=game_session.get("flags") or {},
+        flags=new_flags,
         chapter_summary=wrap["summary"],
         config=director_cfg,
     )
 
+    # Build stat-changes summary for the settlement screen
+    start_stats = game_session.get("chapter_start_stats") or {}
+    stat_summary = _stat_changes_summary(start_stats, game_session.get("stats") or {})
+
     if next_chapter_id:
-        advanced = _advance_to_chapter(
-            game_session, next_chapter_id, summary=wrap["summary"]
-        )
+        # Non-terminal: store pending state, block further turns, persist.
+        from game.content.work_meta import chapter_has_branching_exits
+        if chapter_has_branching_exits(leaving_chapter):
+            game_session["had_branch_choice"] = True
+
+        game_session["game_over"] = True  # blocks further messages until advance confirmed
+        game_session["pending_next_chapter_id"] = next_chapter_id
+        game_session["pending_chapter_summary"] = wrap["summary"]
+        game_session["pending_flags"] = new_flags
+        _persist_save(game_session)
+
         return {
             "chapter_completed": True,
             "work_completed": False,
+            "pending_advance": True,
+            "next_chapter_id": next_chapter_id,
             "chapter_summary": wrap["summary"],
-            "flags": game_session.get("flags") or {},
-            **advanced,
+            "stat_changes_summary": stat_summary,
+            "flags": new_flags,
+            "visited_chapter_ids": game_session.get("visited_chapter_ids") or [],
+            "had_branch_choice": bool(game_session.get("had_branch_choice")),
         }
 
-    # Terminal chapter / no exits → work completed
+    # Terminal chapter → work completed
     summaries = list(game_session.get("chapter_summaries") or [])
     summaries.append(wrap["summary"])
     game_session["chapter_summaries"] = summaries
     game_session["game_over"] = True
     game_session["ending_text"] = ending_text
     game_session["result"] = outcome
+    ending_id = game_session.get("current_chapter_id") or script.get("chapter_id")
+    is_new_ending = False
+    user_id = game_session.get("user_id")
+    try:
+        if ending_id:
+            work_progress.record_ending(game_session["script_id"], str(ending_id))
+            if user_id:
+                from game.content import user_progress
+                is_new_ending = user_progress.record_ending(
+                    user_id, game_session["script_id"], str(ending_id)
+                )
+    except Exception as exc:
+        logger.warning("[engine] record ending failed: %s", exc)
     _persist_save(game_session)
+    ending_tone = leaving_chapter.get("ending_tone") or "bittersweet"
     return {
         "chapter_completed": True,
         "work_completed": True,
+        "pending_advance": False,
         "next_chapter_id": None,
         "chapter_summary": wrap["summary"],
-        "flags": game_session.get("flags") or {},
+        "stat_changes_summary": stat_summary,
+        "flags": new_flags,
+        "visited_chapter_ids": game_session.get("visited_chapter_ids") or [],
+        "had_branch_choice": bool(game_session.get("had_branch_choice")),
+        "ending_tone": ending_tone,
+        "is_new_ending": is_new_ending,
     }
 
 
@@ -424,7 +596,9 @@ def _build_response(
 ) -> dict[str, Any]:
     script = game_session["script"]
     extras = long_form_extras or {}
-    advancing = bool(extras.get("next_chapter_id") and not extras.get("work_completed"))
+    # pending_advance=True means chapter done but awaiting player confirmation —
+    # never auto-advance anymore; the frontend drives that via /chapters/advance.
+    advancing = False
 
     if advancing:
         # Chapter advanced: opening already in history; expose it as reply.
@@ -470,11 +644,21 @@ def _build_response(
             "flags": game_session.get("flags") or {},
             "chapter_completed": extras.get("chapter_completed", False),
             "work_completed": extras.get("work_completed", False),
+            "pending_advance": extras.get("pending_advance", False),
             "next_chapter_id": extras.get("next_chapter_id"),
             "chapter_summary": extras.get("chapter_summary"),
+            "stat_changes_summary": extras.get("stat_changes_summary") or [],
+            "ending_tone": extras.get("ending_tone"),
+            "is_new_ending": extras.get("is_new_ending", False),
             "chapter_title": extras.get("chapter_title")
             or script.get("chapter_title")
             or script.get("title"),
+            "visited_chapter_ids": extras.get("visited_chapter_ids")
+            or game_session.get("visited_chapter_ids")
+            or [],
+            "had_branch_choice": bool(
+                extras.get("had_branch_choice", game_session.get("had_branch_choice"))
+            ),
         })
         if extras.get("max_turns"):
             response["max_turns"] = extras["max_turns"]
@@ -507,11 +691,12 @@ def _finish_after_director(
             game_session, director_result, outcome, ending_text, director_cfg
         )
         work_done = bool(long_form_extras.get("work_completed"))
+        pending = bool(long_form_extras.get("pending_advance"))
         response = _build_response(
             game_session,
-            "" if work_done else (long_form_extras.get("next_opening_line") or ""),
+            "",  # no reply text — settlement screen shown instead
             stat_changes,
-            work_done,
+            work_done or pending,
             outcome if work_done else None,
             ending_text if work_done else None,
             hit_key_points=hit_kp,
@@ -534,6 +719,17 @@ def _finish_after_director(
             game_session, "", stat_changes, True, outcome, ending_text,
             hit_key_points=hit_kp, hit_pitfalls=hit_pf,
         )
+        # Record short-form play history for logged-in users.
+        if not _is_long_form(game_session):
+            user_id = game_session.get("user_id")
+            if user_id:
+                try:
+                    from game.content import short_play_records
+                    short_play_records.record_play(
+                        user_id, game_session["script_id"], outcome or "lose"
+                    )
+                except Exception as exc:
+                    logger.warning("[engine] short_play record failed: %s", exc)
         if debug:
             response["_debug"] = {
                 "director": _agent_debug_payload(director_result, director_meta or {}, director_cfg),
@@ -584,6 +780,7 @@ def start_game(
     ai_name: str | None = None,
     ai_persona: str | None = None,
     save_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     import copy
     director_cfg, roleplay_cfg = llm_config.resolve_dev_agent_configs(llm_override)
@@ -636,9 +833,11 @@ def start_game(
             "game_over": bool(resume_save.get("game_over")),
             "ending_text": None,
             "result": resume_save.get("outcome"),
+            "visited_chapter_ids": list(resume_save.get("visited_chapter_ids") or []),
+            "had_branch_choice": bool(resume_save.get("had_branch_choice")),
         })
 
-    session_id = session_store.create_session(script, **session_kwargs)
+    session_id = session_store.create_session(script, **session_kwargs, user_id=user_id)
     invite_access.runtime_stats.record_session_start()
     game_session = session_store.get_session(session_id)
 
@@ -669,6 +868,9 @@ def start_game(
             "conversation_history": game_session["history"],
             "game_over": False,
             "outcome": None,
+            "visited_chapter_ids": game_session.get("visited_chapter_ids") or [],
+            "had_branch_choice": False,
+            "user_id": game_session.get("user_id"),
         })
         game_session["save_id"] = created["id"]
 
@@ -707,6 +909,8 @@ def start_game(
             "flags": game_session.get("flags") or {},
             "chapter_summaries": game_session.get("chapter_summaries") or [],
             "current_chapter_id": game_session.get("current_chapter_id") or script.get("chapter_id"),
+            "visited_chapter_ids": game_session.get("visited_chapter_ids") or [],
+            "had_branch_choice": bool(game_session.get("had_branch_choice")),
             "resumed": bool(resume_save),
         })
     return result
@@ -716,8 +920,10 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
     game_session = session_store.get_session(session_id)
     if not game_session:
         raise ValueError("Session not found")
-    if game_session["game_over"]:
+    if game_session["game_over"] and not game_session.get("pending_next_chapter_id"):
         raise ValueError("Game is already over")
+    if game_session["game_over"] and game_session.get("pending_next_chapter_id"):
+        raise ValueError("章节结算中，请先翻到下一章")
 
     player_message = _prepare_turn(game_session, message)
     director_cfg = _session_director_config(game_session)
@@ -734,6 +940,45 @@ def process_message(session_id: str, message: str) -> dict[str, Any]:
         roleplay_cfg,
         player_message,
     )
+
+
+def advance_chapter(session_id: str) -> dict[str, Any]:
+    """Confirm the pending chapter advance after the settlement screen.
+
+    Called when the player clicks "翻到下一章". Mutates the session to the next
+    chapter and persists the save. Raises ValueError if no advance is pending.
+    """
+    game_session = session_store.get_session(session_id)
+    if not game_session:
+        raise ValueError("Session not found")
+    if not _is_long_form(game_session):
+        raise ValueError("Not a long-form session")
+
+    next_chapter_id = game_session.get("pending_next_chapter_id")
+    if not next_chapter_id:
+        raise ValueError("No pending chapter advance")
+
+    summary = game_session.get("pending_chapter_summary") or ""
+    script = game_session["script"]
+
+    advanced = _advance_to_chapter(
+        game_session,
+        next_chapter_id,
+        summary=summary,
+        from_chapter=dict(script),
+    )
+    return {
+        "session_id": session_id,
+        "chapter_title": advanced.get("chapter_title") or "",
+        "next_opening_line": advanced.get("next_opening_line") or "",
+        "max_turns": advanced.get("max_turns") or session_store.effective_max_turns(
+            game_session["script"].get("max_turns", 15)
+        ),
+        "stats": game_session.get("stats") or {},
+        "visited_chapter_ids": advanced.get("visited_chapter_ids") or [],
+        "had_branch_choice": bool(advanced.get("had_branch_choice")),
+        "save_id": game_session.get("save_id"),
+    }
 
 
 def _agent_debug_payload(
@@ -759,8 +1004,10 @@ def process_message_debug(session_id: str, message: str) -> dict[str, Any]:
     game_session = session_store.get_session(session_id)
     if not game_session:
         raise ValueError("Session not found")
-    if game_session["game_over"]:
+    if game_session["game_over"] and not game_session.get("pending_next_chapter_id"):
         raise ValueError("Game is already over")
+    if game_session["game_over"] and game_session.get("pending_next_chapter_id"):
+        raise ValueError("章节结算中，请先翻到下一章")
 
     player_message = _prepare_turn(game_session, message)
     director_cfg = _session_director_config(game_session)
@@ -785,8 +1032,10 @@ def process_message_stream(session_id: str, message: str) -> Iterator[dict[str, 
     game_session = session_store.get_session(session_id)
     if not game_session:
         raise ValueError("Session not found")
-    if game_session["game_over"]:
+    if game_session["game_over"] and not game_session.get("pending_next_chapter_id"):
         raise ValueError("Game is already over")
+    if game_session["game_over"] and game_session.get("pending_next_chapter_id"):
+        raise ValueError("章节结算中，请先翻到下一章")
 
     player_message = _prepare_turn(game_session, message)
     director_cfg = _session_director_config(game_session)

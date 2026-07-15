@@ -9,6 +9,7 @@ from typing import Any
 from game.core import condition_parser
 from game.llm import client as llm_client
 from game.llm.config import LLMConfig
+from game.prompts import manager as prompt_manager
 
 logger = logging.getLogger(__name__)
 
@@ -94,21 +95,19 @@ def resolve_ai_choice(
     flag_text = "、".join(f"{k}={v}" for k, v in (flags or {}).items()) or "（无）"
     stats_text = "、".join(f"{k}={v}" for k, v in (stats or {}).items()) or "（无）"
 
-    system = (
-        "你是互动小说的剧情调度器。你只能从给定候选章节 id 中选择一个作为下一章。"
-        "输出严格 JSON：{\"next_chapter\": \"候选id之一\"}。不要输出其它文字。"
-    )
-    user = (
-        f"【选择指引】\n{guidance}\n\n"
-        f"【本章摘要】\n{chapter_summary or '（无）'}\n\n"
-        f"【当前数值】\n{stats_text}\n\n"
-        f"【已有剧情事实(flags)】\n{flag_text}\n\n"
-        f"【候选章节】\n{', '.join(candidates)}\n"
+    system_prompt = prompt_manager.render("exits/system.txt")
+    user_prompt = prompt_manager.render(
+        "exits/user.txt",
+        selection_guidance=guidance,
+        chapter_summary=chapter_summary or "（无）",
+        stats=stats_text,
+        flags=flag_text,
+        candidates=", ".join(candidates),
     )
 
     try:
         result = llm_client.chat_json(
-            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             config,
             fallback={"next_chapter": fallback},
         )

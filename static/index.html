@@ -26,8 +26,8 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="/style.css?v=7">
-  <link rel="stylesheet" href="/echoes/echoes.css?v=9">
+  <link rel="stylesheet" href="/style.css?v=8">
+  <link rel="stylesheet" href="/echoes/echoes.css?v=12">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet">
@@ -55,6 +55,15 @@
   </div>
 
   <!-- Script Selection Screen (visible by default; invite gate may hide it) -->
+  <!-- Settings + Auth buttons (top-right of select screen) -->
+  <button type="button" id="settings-open-btn" class="echoes-settings-trigger" aria-label="模型配置" title="模型配置">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+    </svg>
+  </button>
+  <button type="button" id="auth-btn" class="auth-trigger" aria-label="登录 / 我的记录">登录</button>
+
   <div id="screen-select" class="min-h-screen flex flex-col items-center p-6 pt-10 sm:pt-16 max-w-md mx-auto w-full">
     <div class="text-center mb-8">
       <h1 class="echoes-select-title">入戏</h1>
@@ -63,20 +72,24 @@
         <p class="brand-slogan-text m-0">另一半台词</p>
         <span class="brand-slogan-line" aria-hidden="true"></span>
       </div>
-      <p class="echoes-select-sub mt-4">选择剧本，进入一段可被书写的对话</p>
+      <p class="echoes-select-sub mt-4">选择你的入戏方式</p>
     </div>
 
-    <!-- Tabs -->
-    <div class="w-full mb-6 echoes-tabs">
-      <button data-tab="scripts" class="echoes-tab-btn tab-btn is-active">可用剧本</button>
-      <button data-tab="tbc" class="echoes-tab-btn tab-btn">更多剧本</button>
-      <button data-tab="settings" class="echoes-tab-btn tab-btn">模型配置</button>
+    <!-- Mode switch: 特写 / 长镜 -->
+    <div id="mode-switch" class="mode-switch w-full mb-5" role="tablist" aria-label="入戏方式">
+      <button type="button" class="mode-switch-btn is-active" data-mode="short_form" role="tab" aria-selected="true">
+        <span class="mode-switch-name">特写</span>
+        <span class="mode-switch-slogan">一念落定 · 故事收束</span>
+      </button>
+      <button type="button" class="mode-switch-btn" data-mode="long_form" role="tab" aria-selected="false">
+        <span class="mode-switch-name">长镜</span>
+        <span class="mode-switch-slogan">一镜到底 · 与角色一同呼吸</span>
+      </button>
     </div>
 
-    <!-- Tab: Available Scripts -->
-    <div id="tab-scripts" class="tab-panel w-full space-y-3">
+    <div class="w-full space-y-3">
       <div id="config-warning" class="hidden echoes-warning">
-        请先完成 <button type="button" data-tab-link="settings" class="underline">模型配置</button> 后再开始游戏
+        请先完成 <button type="button" id="config-warning-link" class="underline">模型配置</button> 后再开始游戏
       </div>
       <div id="script-list">
         <div id="script-list-loading" class="echoes-cold-start">
@@ -86,17 +99,35 @@
       </div>
     </div>
 
-    <!-- Tab: More Scripts TBC -->
-    <div id="tab-tbc" class="tab-panel hidden w-full space-y-4">
-      <div class="echoes-form-panel text-center">
-        <h3 class="echoes-script-card-title">更多剧本 · 筹备中</h3>
-        <p class="echoes-select-sub mt-2">更多精彩剧情正在筹备中，敬请期待。</p>
-      </div>
-    </div>
+    <!-- Author note + footer credit (v1.4) -->
+    <footer class="echoes-site-footer w-full mt-10 mb-4">
+      <details class="echoes-author-note" open>
+        <summary>
+          <span class="echoes-author-note-title">作者的话</span>
+          <span class="echoes-author-note-hint echoes-author-note-hint-open">关于 「入戏」 · 可点此收起</span>
+          <span class="echoes-author-note-hint echoes-author-note-hint-closed">关于「入戏」· 点此展开</span>
+        </summary>
+        <div class="echoes-author-note-body">
+          <p>这是一个小范围分享的互动对话 demo ————恭喜，you are invited! 🎉</p>
+          <p>你用语言推动角色的情绪数值，和 AI 角色共同写完一段戏。</p>
+          <p>内容由 AI 生成，仅供娱乐体验。影视同人剧本为同人演绎，非原作品官方内容。</p>
+          <p>当前没有任何存档/读档功能哦，所有内容都是单次体验。觉得好玩可以在结算页点击保存完整对话。</p>
+          <p>分享出去的是静态快照（图片/文字），不是可继续玩的会话链接。</p>
+          <p id="footer-feedback-line"></p>
+        </div>
+      </details>
+      <p id="site-credit-line" class="echoes-credit-line"></p>
+    </footer>
+  </div>
 
-    <!-- Tab: LLM Settings -->
-    <div id="tab-settings" class="tab-panel hidden w-full">
-      <form id="llm-config-form" class="echoes-form-panel space-y-1">
+  <!-- Global settings overlay (LLM) -->
+  <div id="settings-overlay" class="hidden echoes-settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="echoes-settings-card">
+      <div class="echoes-settings-header">
+        <h2 id="settings-title" class="echoes-settings-title">模型配置</h2>
+        <button type="button" id="settings-close-btn" class="echoes-settings-close" aria-label="关闭">关闭</button>
+      </div>
+      <form id="llm-config-form" class="echoes-form-panel echoes-settings-form space-y-1">
         <div>
           <label>Provider</label>
           <select id="cfg-provider">
@@ -125,26 +156,6 @@
         <p style="font-size:0.6875rem;color:var(--echo-muted);line-height:1.6;margin-top:0.75rem">温馨提示：请用你自己的 API Key，不要泄露给他人哦。</p>
       </form>
     </div>
-
-    <!-- Author note + footer credit (v1.4) -->
-    <footer class="echoes-site-footer w-full mt-10 mb-4">
-      <details class="echoes-author-note" open>
-        <summary>
-          <span class="echoes-author-note-title">作者的话</span>
-          <span class="echoes-author-note-hint echoes-author-note-hint-open">关于 「入戏」 · 可点此收起</span>
-          <span class="echoes-author-note-hint echoes-author-note-hint-closed">关于「入戏」· 点此展开</span>
-        </summary>
-        <div class="echoes-author-note-body">
-          <p>这是一个小范围分享的互动对话 demo ————恭喜，you are invited! 🎉</p>
-          <p>你用语言推动角色的情绪数值，和 AI 角色共同写完一段戏。</p>
-          <p>内容由 AI 生成，仅供娱乐体验。影视同人剧本为同人演绎，非原作品官方内容。</p>
-          <p>当前没有任何存档/读档功能哦，所有内容都是单次体验。觉得好玩可以在结算页点击保存完整对话。</p>
-          <p>分享出去的是静态快照（图片/文字），不是可继续玩的会话链接。</p>
-          <p id="footer-feedback-line"></p>
-        </div>
-      </details>
-      <p id="site-credit-line" class="echoes-credit-line"></p>
-    </footer>
   </div>
 
   <!-- Game Screen — Echoes reading flow (v1.3) -->
@@ -155,9 +166,11 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem">
           <div>
             <h2 class="echoes-chapter-title">
-              <span x-text="scriptTitle"></span>
+              <span x-text="displayTitle"></span>
               <span class="echoes-turn-hint" x-text="turnHint"></span>
             </h2>
+            <!-- Long-form path spine -->
+            <div class="echoes-spine" x-show="isLongForm" x-cloak x-html="spineSvg" aria-hidden="true"></div>
             <div class="echoes-context" x-show="!contextCollapsed">
               <p class="echoes-briefing" x-text="briefing"></p>
               <p class="echoes-objective" x-show="objective">目标：<span x-text="objective"></span></p>
@@ -247,7 +260,65 @@
       </footer>
 
     </div>
-  </div>
+
+    <!-- Chapter transition overlay (long-form) -->
+    <div class="echoes-chapter-transition" x-show="chapterTransitionVisible" x-cloak x-transition.opacity.duration.500ms>
+      <p class="echoes-chapter-transition-label">下一幕</p>
+      <p class="echoes-chapter-transition-title" x-text="chapterTransitionTitle"></p>
+    </div>
+
+    <!-- Chapter settlement overlay (pending two-step advance) -->
+    <div class="settlement-overlay" x-show="chapterSettlementVisible" x-cloak>
+      <div class="settlement-card" role="dialog" aria-modal="true" aria-label="章节结算">
+        <p class="settlement-chapter-label">
+          <span x-text="chapterSettlementData?.chapterTitle"></span>
+          <span class="settlement-fin">终</span>
+        </p>
+        <div class="echoes-spine settlement-spine" x-html="spineSvg" aria-hidden="true"></div>
+        <div class="settlement-stats" x-show="chapterSettlementData?.statChangesSummary?.length">
+          <template x-for="s in (chapterSettlementData?.statChangesSummary || [])" :key="s.stat">
+            <div class="settlement-stat-row">
+              <span class="settlement-stat-name" x-text="s.stat"></span>
+              <span class="settlement-stat-arrow">
+                <span x-text="s.from"></span>
+                <span class="settlement-arrow">→</span>
+                <span class="settlement-stat-to" x-text="s.to"></span>
+              </span>
+            </div>
+          </template>
+        </div>
+        <p class="settlement-summary" x-text="chapterSettlementData?.summary"></p>
+        <button class="echoes-btn echoes-btn-primary settlement-advance-btn" @click="confirmAdvance()">翻到下一章</button>
+      </div>
+    </div>
+
+    <!-- Work ending overlay (terminal chapter) -->
+    <div class="settlement-overlay work-ending-overlay" x-show="workEndingVisible" x-cloak
+         :class="`tone-${workEndingData?.endingTone || 'bittersweet'}`">
+      <div class="settlement-card" role="dialog" aria-modal="true" aria-label="作品终局">
+        <p class="settlement-new-ending-badge" x-show="workEndingData?.isNewEnding">你发现了一个新的可能</p>
+        <p class="settlement-chapter-label">
+          <span x-text="workEndingData?.chapterTitle"></span>
+          <span class="settlement-fin">终局</span>
+        </p>
+        <div class="echoes-spine settlement-spine" x-html="spineSvg" aria-hidden="true"></div>
+        <div class="settlement-stats">
+          <template x-for="stat in statRows" :key="stat.name">
+            <div class="settlement-stat-row">
+              <span class="settlement-stat-name" x-text="stat.label"></span>
+              <span class="settlement-stat-to" x-text="stat.value"></span>
+            </div>
+          </template>
+        </div>
+        <p class="settlement-summary" x-text="workEndingData?.summary"></p>
+        <div class="settlement-actions">
+          <button class="echoes-btn" @click="restartWork()">再入此局</button>
+          <button class="echoes-btn echoes-btn-primary" @click="exitGame()">返回入口</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#screen-game -->
 
   <!-- Script Briefing Modal -->
   <div id="briefing-overlay" class="hidden echoes-briefing-overlay">
@@ -326,8 +397,48 @@
     </div>
   </div>
 
-  <script type="module" src="/echoes/echoes-app.js?v=5"></script>
+  <!-- Auth Modal (email magic link) -->
+  <div id="auth-modal" class="hidden echoes-briefing-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+    <div class="echoes-briefing-card auth-modal-card">
+      <h2 id="auth-modal-title" class="echoes-briefing-script-title">登录 / 注册</h2>
+      <div id="auth-form-pane">
+        <p class="echoes-briefing-body" style="margin-bottom:1rem">输入你的邮箱，我们将发送一条免密登录链接。</p>
+        <form id="auth-email-form" class="echoes-form-panel space-y-3">
+          <div>
+            <label for="auth-email-input">邮箱</label>
+            <input id="auth-email-input" type="email" autocomplete="email" placeholder="your@email.com" required>
+          </div>
+          <p id="auth-form-error" class="hidden" style="font-size:0.75rem;color:var(--echo-danger)"></p>
+          <div class="echoes-briefing-actions">
+            <button type="button" id="auth-modal-cancel" class="echoes-btn" style="flex:1">取消</button>
+            <button type="submit" id="auth-submit-btn" class="echoes-btn echoes-btn-primary" style="flex:2">发送登录链接</button>
+          </div>
+        </form>
+      </div>
+      <div id="auth-sent-pane" class="hidden" style="text-align:center;padding:1rem 0">
+        <p class="echoes-briefing-body" style="margin-bottom:1rem">链接已发送，请查收邮件并点击其中的登录链接。</p>
+        <button type="button" id="auth-sent-close" class="echoes-btn echoes-btn-primary" style="width:100%">好的</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div id="history-modal" class="hidden echoes-briefing-overlay" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+    <div class="echoes-briefing-card history-modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h2 id="history-modal-title" class="echoes-briefing-script-title" style="margin:0">我的记录</h2>
+        <button type="button" id="history-modal-close" class="echoes-btn" style="padding:0.25rem 0.75rem;font-size:0.75rem">关闭</button>
+      </div>
+      <div id="history-content">
+        <p id="history-loading" class="echoes-briefing-body" style="color:var(--echo-muted)">加载中…</p>
+        <div id="history-list" class="hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/echoes/echoes-app.js?v=7"></script>
   <script defer src="/vendor/alpine.min.js"></script>
-  <script type="module" src="/app.js?v=19"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script type="module" src="/app.js?v=23"></script>
 </body>
 </html>

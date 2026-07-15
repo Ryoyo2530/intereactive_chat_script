@@ -41,7 +41,6 @@ const state = {
   gameOver: false,
   llmConfigured: false,
   serverHasEnvConfig: false,
-  activeTab: 'scripts',
   statsConfig: {},
   currentScriptId: null,
   allScripts: [],
@@ -49,6 +48,8 @@ const state = {
   lastEnding: null,
   flowEntries: [],
   perfId: '',
+  playMode: 'short_form',
+  pendingSaveId: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -57,19 +58,29 @@ const $$ = (sel) => document.querySelectorAll(sel);
 function showScreen(name) {
   $('#screen-select').classList.toggle('hidden', name !== 'select');
   $('#screen-game').classList.toggle('hidden', name !== 'game');
+  $('#settings-open-btn')?.classList.toggle('hidden', name !== 'select');
+  if (name !== 'select') closeSettings();
 }
 
 function showInviteGate(show) {
   $('#invite-gate')?.classList.toggle('hidden', !show);
+  if (show) {
+    $('#settings-open-btn')?.classList.add('hidden');
+    closeSettings();
+  } else if (!$('#screen-select')?.classList.contains('hidden')) {
+    $('#settings-open-btn')?.classList.remove('hidden');
+  }
 }
 
-function switchTab(tab) {
-  state.activeTab = tab;
-  $$('.tab-btn').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.tab === tab);
-  });
-  $$('.tab-panel').forEach((panel) => panel.classList.add('hidden'));
-  $(`#tab-${tab}`)?.classList.remove('hidden');
+function openSettings() {
+  updateConfigUI();
+  $('#settings-overlay')?.classList.remove('hidden');
+  document.body.classList.add('echoes-settings-open');
+}
+
+function closeSettings() {
+  $('#settings-overlay')?.classList.add('hidden');
+  document.body.classList.remove('echoes-settings-open');
 }
 
 function loadStoredLLMConfig() {
@@ -179,14 +190,18 @@ function tagBadgeEl(tag) {
 }
 
 function buildScriptCard(script) {
+  const isLong = (script.work_type || 'short_form') === 'long_form';
   const card = document.createElement('button');
-  card.className = 'echoes-script-card';
+  card.className = 'echoes-script-card' + (isLong ? ' echoes-script-card-long' : '');
 
-  const tags = document.createElement('div');
-  tags.className = 'echoes-script-card-tags';
-  if (script.origin_tag) tags.appendChild(tagBadgeEl(script.origin_tag));
-  for (const t of (script.theme_tags || [])) tags.appendChild(tagBadgeEl(t));
-  if (tags.childNodes.length) card.appendChild(tags);
+  // 特写：顶部保留 origin + theme 徽章；长镜：不与特写共享标签体系，tag 只在卡片底部
+  if (!isLong) {
+    const tags = document.createElement('div');
+    tags.className = 'echoes-script-card-tags';
+    if (script.origin_tag) tags.appendChild(tagBadgeEl(script.origin_tag));
+    for (const t of (script.theme_tags || [])) tags.appendChild(tagBadgeEl(t));
+    if (tags.childNodes.length) card.appendChild(tags);
+  }
 
   const title = document.createElement('h3');
   title.className = 'echoes-script-card-title';
@@ -200,16 +215,96 @@ function buildScriptCard(script) {
     card.appendChild(teaser);
   }
 
-  const bottom = document.createElement('div');
-  bottom.className = 'echoes-script-card-meta';
-  bottom.innerHTML = `
-    <span>${script.player_role_hint || ''}</span>
-    <span>${script.estimated_turns_hint || ''}</span>
-  `;
-  card.appendChild(bottom);
+  if (isLong) {
+    const status = script.progress_status || 'not_started';
+    // Progress dots only when started (avoids revealing chapter count)
+    if (status !== 'not_started' && script.chapter_count) {
+      const dots = document.createElement('div');
+      dots.className = 'chapter-dots';
+      const visited = Math.min(script.visited_count || 0, script.chapter_count);
+      for (let i = 0; i < script.chapter_count; i++) {
+        if (i > 0) {
+          const connector = document.createElement('span');
+          connector.className = 'dot-connector';
+          dots.appendChild(connector);
+        }
+        const dot = document.createElement('span');
+        dot.className = 'dot ' + (i < visited ? 'filled' : 'hollow');
+        dots.appendChild(dot);
+      }
+      card.appendChild(dots);
+    }
 
-  card.addEventListener('click', () => showScriptModal(script.id));
+    const bottom = document.createElement('div');
+    bottom.className = 'echoes-script-card-meta';
+    let left = '未开始';
+    if (status === 'in_progress') {
+      const idx = script.current_chapter_index || script.visited_count || 1;
+      left = `进行中 · 第${idx}幕`;
+    } else if (status === 'completed') {
+      left = '已完结';
+    }
+    const endingLabel = script.all_endings_discovered ? '已阅尽此世' : '仍有未至之地';
+    bottom.innerHTML = `
+      <span>${left}</span>
+      <span class="ending-status">
+        <svg class="ending-status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        ${endingLabel}
+      </span>
+    `;
+    card.appendChild(bottom);
+
+    const themeTags = script.theme_tags || [];
+    if (themeTags.length) {
+      const foot = document.createElement('div');
+      foot.className = 'echoes-script-card-foot-tags';
+      for (const t of themeTags) foot.appendChild(tagBadgeEl(t));
+      card.appendChild(foot);
+    }
+  } else {
+    const bottom = document.createElement('div');
+    bottom.className = 'echoes-script-card-meta';
+    bottom.innerHTML = `
+      <span>${script.player_role_hint || ''}</span>
+      <span>${script.estimated_turns_hint || ''}</span>
+    `;
+    card.appendChild(bottom);
+  }
+
+  card.addEventListener('click', () => {
+    state.pendingSaveId = (isLong && script.save_id && script.progress_status === 'in_progress')
+      ? script.save_id
+      : null;
+    showScriptModal(script.id);
+  });
   return card;
+}
+
+function scriptsForCurrentMode() {
+  return (state.allScripts || []).filter((s) => {
+    const t = s.work_type || 'short_form';
+    return t === state.playMode;
+  });
+}
+
+function bindModeSwitch() {
+  const root = $('#mode-switch');
+  if (!root) return;
+  root.querySelectorAll('[data-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.getAttribute('data-mode');
+      if (!mode || mode === state.playMode) return;
+      state.playMode = mode;
+      root.querySelectorAll('[data-mode]').forEach((b) => {
+        const on = b.getAttribute('data-mode') === mode;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      renderScriptList();
+    });
+  });
 }
 
 function fillSiteCredit() {
@@ -290,7 +385,6 @@ function resetToSelect() {
 
   window.dispatchEvent(new CustomEvent('echoes:reset'));
   hideEnding();
-  switchTab('scripts');
   showScreen('select');
   loadScripts();
   refreshLLMStatus();
@@ -313,14 +407,27 @@ function renderScriptList() {
   const list = $('#script-list');
   list.innerHTML = '';
 
-  if (!state.allScripts.length) {
-    list.innerHTML = '<p class="echoes-select-sub text-center py-8">暂无可用剧本</p>';
+  const filtered = scriptsForCurrentMode();
+  if (!filtered.length) {
+    const empty = state.playMode === 'long_form'
+      ? '长镜作品筹备中，先去特写走一程吧。'
+      : '暂无可用剧本';
+    list.innerHTML = `<p class="echoes-select-sub text-center py-8">${empty}</p>`;
+    return;
+  }
+
+  // 长镜：不与特写共享 origin_tag 分类体系，直接平铺卡片
+  if (state.playMode === 'long_form') {
+    const stack = document.createElement('div');
+    stack.className = 'longform-script-stack';
+    for (const script of filtered) stack.appendChild(buildScriptCard(script));
+    list.appendChild(stack);
     return;
   }
 
   const grouped = new Map();
   for (const meta of CATEGORY_META) grouped.set(meta.origin_tag, []);
-  for (const s of state.allScripts) {
+  for (const s of filtered) {
     if (!grouped.has(s.origin_tag)) grouped.set(s.origin_tag, []);
     grouped.get(s.origin_tag).push(s);
   }
@@ -343,7 +450,7 @@ function renderScriptList() {
           ${subtitle ? `<div class="script-category-subtitle">${subtitle}</div>` : ''}
         </div>
         <div class="script-category-meta">
-          <span class="script-category-count">${scripts.length} 个剧本</span>
+          <span class="script-category-count">${scripts.length} 部</span>
           <svg class="script-category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -415,8 +522,7 @@ function showBriefingStep(n) {
 
 async function showScriptModal(scriptId) {
   if (!state.llmConfigured) {
-    switchTab('settings');
-    updateConfigUI();
+    openSettings();
     return;
   }
 
@@ -494,8 +600,7 @@ $('#briefing-overlay').addEventListener('click', (e) => {
 
 async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail = null) {
   if (!state.llmConfigured) {
-    switchTab('settings');
-    updateConfigUI();
+    openSettings();
     return;
   }
 
@@ -505,11 +610,15 @@ async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail
   if (llmConfig) payload.llm_config = llmConfig;
   if (aiName) payload.ai_name = aiName;
   if (aiPersona) payload.ai_persona = aiPersona;
+  if (state.pendingSaveId) payload.save_id = state.pendingSaveId;
 
   try {
+    const token = window._supabaseSession?.access_token;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch('/api/session/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     });
     if (res.status === 401) {
@@ -534,6 +643,7 @@ async function startGame(scriptId, aiName = null, aiPersona = null, scriptDetail
     state.gameOver = false;
     state.flowEntries = [];
 
+    state.pendingSaveId = null;
     hideEnding();
     showScreen('game');
     window.dispatchEvent(new CustomEvent('echoes:session-started', {
@@ -645,12 +755,16 @@ $('#replay-btn').addEventListener('click', () => {
 
 $('#change-script-btn').addEventListener('click', resetToSelect);
 
-$$('.tab-btn').forEach((btn) => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+$('#settings-open-btn')?.addEventListener('click', openSettings);
+$('#config-warning-link')?.addEventListener('click', openSettings);
+$('#settings-close-btn')?.addEventListener('click', closeSettings);
+$('#settings-overlay')?.addEventListener('click', (e) => {
+  if (e.target === $('#settings-overlay')) closeSettings();
 });
-
-$$('[data-tab-link]').forEach((el) => {
-  el.addEventListener('click', () => switchTab(el.dataset.tabLink));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#settings-overlay')?.classList.contains('hidden')) {
+    closeSettings();
+  }
 });
 
 $('#cfg-provider').addEventListener('change', onProviderChange);
@@ -666,6 +780,7 @@ $('#llm-config-form').addEventListener('submit', (e) => {
   state.llmConfigured = true;
   updateConfigUI();
   showCfgMessage('配置已保存');
+  setTimeout(() => closeSettings(), 450);
 });
 
 $('#cfg-test-btn').addEventListener('click', async () => {
@@ -733,11 +848,177 @@ async function ensureInvite() {
   }
 }
 
+// ── Auth ────────────────────────────────────────────────────────
+
+let _supabase = null;
+
+async function initSupabase() {
+  try {
+    const res = await fetch('/api/config/supabase');
+    if (!res.ok) return;
+    const { supabase_url, supabase_anon_key } = await res.json();
+    if (!supabase_url || !supabase_anon_key) return;
+    _supabase = window.supabase?.createClient(supabase_url, supabase_anon_key);
+    if (!_supabase) return;
+
+    _supabase.auth.onAuthStateChange((_event, session) => {
+      window._supabaseSession = session;
+      updateAuthButton(session?.user ?? null);
+    });
+
+    const { data: { session } } = await _supabase.auth.getSession();
+    window._supabaseSession = session;
+    updateAuthButton(session?.user ?? null);
+  } catch (err) {
+    console.warn('[auth] initSupabase failed:', err);
+  }
+}
+
+function updateAuthButton(user) {
+  const btn = $('#auth-btn');
+  if (!btn) return;
+  btn.classList.remove('hidden');
+  if (user) {
+    const email = user.email || '';
+    btn.textContent = email ? `我的记录 (${email.split('@')[0]})` : '我的记录';
+    btn.dataset.mode = 'history';
+  } else {
+    btn.textContent = '登录';
+    btn.dataset.mode = 'login';
+  }
+}
+
+function openAuthModal() {
+  $('#auth-form-pane')?.classList.remove('hidden');
+  $('#auth-sent-pane')?.classList.add('hidden');
+  $('#auth-email-input').value = '';
+  $('#auth-form-error')?.classList.add('hidden');
+  $('#auth-modal')?.classList.remove('hidden');
+}
+
+function closeAuthModal() {
+  $('#auth-modal')?.classList.add('hidden');
+}
+
+async function sendMagicLink(email) {
+  if (!_supabase) throw new Error('账号功能暂未配置，请联系管理员设置 Supabase 环境变量');
+  const { error } = await _supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  if (error) throw new Error(error.message);
+}
+
+async function openHistoryModal() {
+  $('#history-modal')?.classList.remove('hidden');
+  $('#history-loading')?.classList.remove('hidden');
+  $('#history-list')?.classList.add('hidden');
+  try {
+    const token = window._supabaseSession?.access_token;
+    const res = await fetch('/api/me/history', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('未登录');
+    const data = await res.json();
+    renderHistory(data);
+  } catch (err) {
+    const el = $('#history-loading');
+    if (el) { el.textContent = err.message || '加载失败'; el.classList.remove('hidden'); }
+  }
+}
+
+function renderHistory({ short_play_records = [], long_form_progress = [] }) {
+  const list = $('#history-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (!short_play_records.length && !long_form_progress.length) {
+    list.innerHTML = '<p style="color:var(--echo-muted);font-size:0.8125rem">暂无游玩记录</p>';
+  } else {
+    if (short_play_records.length) {
+      const h = document.createElement('p');
+      h.className = 'echoes-briefing-section-label';
+      h.textContent = '特写';
+      list.appendChild(h);
+      for (const r of short_play_records) {
+        const row = document.createElement('div');
+        row.className = 'history-row';
+        const date = r.completed_at ? new Date(r.completed_at).toLocaleDateString('zh-CN') : '';
+        row.innerHTML = `<span class="history-work">${r.work_id}</span><span class="history-meta">${r.outcome === 'win' ? '达成' : '失败'} · ${date}</span>`;
+        list.appendChild(row);
+      }
+    }
+    if (long_form_progress.length) {
+      const h = document.createElement('p');
+      h.className = 'echoes-briefing-section-label';
+      h.style.marginTop = '0.75rem';
+      h.textContent = '长镜';
+      list.appendChild(h);
+      for (const r of long_form_progress) {
+        const row = document.createElement('div');
+        row.className = 'history-row';
+        const endings = (r.discovered_endings || []).length;
+        row.innerHTML = `<span class="history-work">${r.work_id}</span><span class="history-meta">已发现结局 ${endings} 个</span>`;
+        list.appendChild(row);
+      }
+    }
+  }
+
+  $('#history-loading')?.classList.add('hidden');
+  list.classList.remove('hidden');
+}
+
+$('#auth-btn')?.addEventListener('click', () => {
+  if ($('#auth-btn').dataset.mode === 'history') {
+    openHistoryModal();
+  } else {
+    openAuthModal();
+  }
+});
+
+$('#auth-modal-cancel')?.addEventListener('click', closeAuthModal);
+$('#auth-sent-close')?.addEventListener('click', closeAuthModal);
+$('#auth-modal')?.addEventListener('click', (e) => {
+  if (e.target === $('#auth-modal')) closeAuthModal();
+});
+
+$('#auth-email-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('#auth-email-input')?.value.trim();
+  const errEl = $('#auth-form-error');
+  if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+  const btn = $('#auth-submit-btn');
+  if (btn) btn.disabled = true;
+  try {
+    await sendMagicLink(email);
+    $('#auth-form-pane')?.classList.add('hidden');
+    $('#auth-sent-pane')?.classList.remove('hidden');
+  } catch (err) {
+    if (errEl) { errEl.textContent = err.message || '发送失败，请重试'; errEl.classList.remove('hidden'); }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
+$('#history-modal-close')?.addEventListener('click', () => {
+  $('#history-modal')?.classList.add('hidden');
+});
+$('#history-modal')?.addEventListener('click', (e) => {
+  if (e.target === $('#history-modal')) $('#history-modal').classList.add('hidden');
+});
+
+window.addEventListener('echoes:restart-work', async (e) => {
+  const workId = e.detail?.work_id;
+  if (!workId) return;
+  state.pendingSaveId = null;
+  await startGame(workId);
+});
+
 async function bootstrap() {
   try {
     fillSiteCredit();
+    bindModeSwitch();
     fillLLMForm(loadStoredLLMConfig() || { provider: 'doubao', ...PROVIDER_DEFAULTS.doubao, api_key: '' });
-    switchTab('scripts');
     showScreen('select');
 
     const ok = await ensureInvite();
@@ -745,7 +1026,7 @@ async function bootstrap() {
 
     state.authorized = true;
     showInviteGate(false);
-    await Promise.all([refreshLLMStatus(), loadScripts()]);
+    await Promise.all([refreshLLMStatus(), loadScripts(), initSupabase()]);
   } catch (err) {
     console.error('bootstrap failed', err);
     showScreen('select');

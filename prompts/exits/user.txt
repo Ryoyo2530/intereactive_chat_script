@@ -1,0 +1,14 @@
+【选择指引】
+{{selection_guidance}}
+
+【本章摘要】
+{{chapter_summary}}
+
+【当前数值】
+{{stats}}
+
+【已有剧情事实(flags)】
+{{flags}}
+
+【候选章节】
+{{candidates}}

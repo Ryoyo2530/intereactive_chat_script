@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>入戏 —— 特写 / 长镜 卡片视觉参考</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5F2EB;
+    --surface: #FBFAF6;
+    --text: #232323;
+    --text-secondary: #8A8578;
+    --text-tertiary: #A6A196;
+    --border: #DDD8CF;
+    --accent: #4B6355;
+    --accent-bg: #E6ECE3;
+    --danger: #8A4D4A;
+    --warn: #BA7517;
+    --tag-family-bg: #F0E4DC;
+    --tag-family-text: #8A5A3A;
+    --tag-love-bg: #EFE1E9;
+    --tag-love-text: #99355A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 48px 24px;
+    background: #EDEAE0;
+    font-family: Georgia, 'Noto Serif SC', serif;
+    color: var(--text);
+  }
+  .page-title {
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    color: var(--text-tertiary);
+    margin-bottom: 40px;
+  }
+  .row {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .col {
+    width: 300px;
+  }
+  .col-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+  .col-label b {
+    color: var(--text);
+  }
+
+  /* ============ 卡片基础骨架（两种模式共用） ============ */
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .badges {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .badge {
+    font-size: 10.5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+  .title {
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .teaser {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .bottom-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+  }
+
+  /* ============ 长镜专属：章节进度点 ============ */
+  .chapter-dots {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-bottom: 10px;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .dot.filled { background: var(--accent); }
+  .dot.hollow { border: 1px solid #B0AA9C; background: transparent; }
+  .dot-connector {
+    width: 12px;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ============ 长镜专属：结局神秘感标签 ============ */
+  .ending-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .ending-status .icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
+  .annotation {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-family: -apple-system, sans-serif;
+    font-size: 11.5px;
+    color: #555;
+    line-height: 1.7;
+  }
+  .annotation b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="page-title">入戏 · 卡片视觉参考 —— 特写 / 长镜</div>
+
+<div class="row">
+
+  <!-- ============ 特写卡片：现状不变 ============ -->
+  <div class="col">
+    <div class="col-label"><b>特写</b> 卡片 —— 沿用 v1.1 现状，不改动</div>
+
+    <div class="card">
+      <div class="badges">
+        <span class="badge" style="background:var(--accent-bg);color:var(--accent);">影视改编</span>
+        <span class="badge" style="background:var(--tag-love-bg);color:var(--tag-love-text);">友情</span>
+      </div>
+      <div class="title">我的前半生 · 唐晶篇</div>
+      <div class="teaser">罗子君与贺涵的关系让唐晶心生芥蒂，你该如何解释才能挽回这段友情？</div>
+      <div class="bottom-row">
+        <span>扮演 罗子君 · 对手 唐晶</span>
+        <span>约 10-15 轮</span>
+      </div>
+    </div>
+
+    <div class="annotation">
+      结构：标签徽章 → 标题 → teaser → 底部信息行（player_role_hint / estimated_turns_hint）。<br>
+      本阶段<b>不改动</b>此卡片的任何字段、样式、交互。
+    </div>
+  </div>
+
+  <!-- ============ 长镜卡片：新增视觉 ============ -->
+  <div class="col">
+    <div class="col-label"><b>长镜</b> 卡片 —— 新增章节进度 + 结局神秘感处理</div>
+
+    <div class="card">
+      <div class="badges">
+        <span class="badge" style="background:var(--accent-bg);color:var(--accent);">原创剧情</span>
+        <span class="badge" style="background:var(--tag-family-bg);color:var(--tag-family-text);">家庭</span>
+      </div>
+      <div class="title">向海的信</div>
+      <div class="teaser">一封迟到十年的信，牵出两代人未说完的话。</div>
+
+      <!-- 章节进度点：仅在玩家已开始游玩时展示，圆点数=chapter_ids长度，实心=已读 -->
+      <div class="chapter-dots">
+        <span class="dot filled"></span>
+        <span class="dot-connector"></span>
+        <span class="dot filled"></span>
+        <span class="dot-connector"></span>
+        <span class="dot hollow"></span>
+        <span class="dot-connector"></span>
+        <span class="dot hollow"></span>
+      </div>
+
+      <div class="bottom-row">
+        <span>进行中 · 第2/4章</span>
+        <!-- 结局状态位：不展示总数，只展示"是否已解锁全部已知结局" -->
+        <span class="ending-status">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#A6A196" stroke-width="1.6">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          仍有未至之地
+        </span>
+      </div>
+    </div>
+
+    <div class="annotation">
+      新增两处信息位：<br>
+      1. <b>章节进度点</b>——圆点数量 = 该 work 的 chapter_ids 长度；实心=已读章节，空心=未读。<b>仅在玩家已开始游玩（存在存档）时展示</b>，未开始的作品不展示这一行。<br>
+      2. <b>结局状态位</b>——接口只返回布尔值 <code>all_endings_discovered</code>，<b>不返回具体结局总数</b>。未全部解锁时固定展示"仍有未至之地"+ 月相图标；玩家集齐该作品全部已知结局后，切换为"已阅尽此世"。此判定对未来可能出现的 AI 自生长（无固定终点集合）作品天然兼容——那类作品此字段永远为 false，UI 保持"仍有未至之地"的常驻神秘状态，无需额外分支处理。<br>
+      3. 底部左侧文案从"进行中 · 第N/总章"三态切换：未开始 / 进行中·第N章 / 已完结。
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

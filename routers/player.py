@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
@@ -51,7 +51,51 @@ class HintRequest(BaseModel):
     session_id: str
 
 
-@router.get("/favicon.ico")
+class AdvanceChapterRequest(BaseModel):
+    session_id: str
+
+
+@api_router.get("/api/config/supabase")
+def get_supabase_config():
+    from game.settings import get_settings
+    s = get_settings()
+    return {
+        "supabase_url": s.supabase_url or "",
+        "supabase_anon_key": s.supabase_anon_key or "",
+    }
+
+
+@api_router.post("/api/works/{work_id}/chapters/advance")
+def advance_chapter(work_id: str, body: AdvanceChapterRequest, request: Request):
+    from game.content.auth_helper import get_user_id_from_token
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else None
+    user_id = get_user_id_from_token(token)
+    # Attach user_id to session before advancing so save is scoped correctly.
+    game_session = session_store.get_session(body.session_id)
+    if game_session and user_id and not game_session.get("user_id"):
+        session_store.update_session(body.session_id, {"user_id": user_id})
+    try:
+        return engine.advance_chapter(body.session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@api_router.get("/api/me/history")
+def get_my_history(request: Request):
+    from game.content.auth_helper import get_user_id_from_token
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else None
+    user_id = get_user_id_from_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未登录")
+    from game.content import short_play_records
+    from game.content import user_progress
+    short_records = short_play_records.list_for_user(user_id)
+    long_records = user_progress.list_long_form_progress(user_id)
+    return {"short_play_records": short_records, "long_form_progress": long_records}
 def favicon():
     return Response(content=FAVICON_SVG, media_type="image/svg+xml")
 
@@ -115,7 +159,11 @@ def get_script_detail(script_id: str):
 
 
 @api_router.post("/api/session/start")
-def start_session(body: StartSessionRequest):
+def start_session(body: StartSessionRequest, request: Request):
+    from game.content.auth_helper import get_user_id_from_token
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else None
+    user_id = get_user_id_from_token(token)
     try:
         override = body.llm_config.model_dump() if body.llm_config else None
         return engine.start_game(
@@ -124,6 +172,7 @@ def start_session(body: StartSessionRequest):
             ai_name=body.ai_name,
             ai_persona=body.ai_persona,
             save_id=body.save_id,
+            user_id=user_id,
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Script not found")

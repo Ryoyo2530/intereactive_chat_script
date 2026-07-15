@@ -28,6 +28,7 @@ def create_save(payload: dict[str, Any]) -> dict[str, Any]:
     row = {
         "id": save_id,
         "work_id": payload["work_id"],
+        "user_id": payload.get("user_id"),
         "current_chapter_id": payload["current_chapter_id"],
         "current_turn": payload.get("current_turn", 0),
         "stats": deepcopy(payload.get("stats") or {}),
@@ -38,10 +39,14 @@ def create_save(payload: dict[str, Any]) -> dict[str, Any]:
         "conversation_history": deepcopy(payload.get("conversation_history") or []),
         "game_over": bool(payload.get("game_over", False)),
         "outcome": payload.get("outcome"),
+        "visited_chapter_ids": list(payload.get("visited_chapter_ids") or []),
+        "had_branch_choice": bool(payload.get("had_branch_choice", False)),
     }
-    # Single save slot per work: replace any prior in-memory save.
+    # Single save slot per work (scoped by user_id when present).
     for existing_id, existing in list(_memory_saves.items()):
-        if existing.get("work_id") == row["work_id"]:
+        same_work = existing.get("work_id") == row["work_id"]
+        same_user = existing.get("user_id") == row["user_id"]
+        if same_work and same_user:
             del _memory_saves[existing_id]
     _memory_saves[save_id] = row
     logger.info("[save_store] memory save created %s work=%s", save_id[:8], row["work_id"])
@@ -77,6 +82,9 @@ def update_save(save_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         "conversation_history",
         "game_over",
         "outcome",
+        "visited_chapter_ids",
+        "had_branch_choice",
+        "user_id",
     }
     for key, value in updates.items():
         if key in allowed:
@@ -96,6 +104,28 @@ def get_active_save_for_work(work_id: str) -> dict[str, Any] | None:
         return saves[0] if saves else None
 
     matches = [s for s in _memory_saves.values() if s.get("work_id") == work_id]
+    if not matches:
+        return None
+    active = [s for s in matches if not s.get("game_over")]
+    chosen = active[0] if active else matches[0]
+    return deepcopy(chosen)
+
+
+def get_active_save_for_user_and_work(user_id: str, work_id: str) -> dict[str, Any] | None:
+    """Return the active (or most-recent) save scoped to a specific user+work."""
+    if _use_db():
+        from game.content import save_repository
+
+        saves = save_repository.list_saves_for_user_and_work(user_id, work_id)
+        for row in saves:
+            if not row.get("game_over"):
+                return row
+        return saves[0] if saves else None
+
+    matches = [
+        s for s in _memory_saves.values()
+        if s.get("work_id") == work_id and s.get("user_id") == user_id
+    ]
     if not matches:
         return None
     active = [s for s in matches if not s.get("game_over")]

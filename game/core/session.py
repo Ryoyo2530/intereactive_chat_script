@@ -77,6 +77,9 @@ def create_session(
     game_over: bool = False,
     ending_text: str | None = None,
     result: str | None = None,
+    visited_chapter_ids: list[str] | None = None,
+    had_branch_choice: bool = False,
+    user_id: str | None = None,
 ) -> str:
     cleanup_expired()
     if len(_sessions) >= _max_concurrent():
@@ -90,6 +93,11 @@ def create_session(
     }
     now = _now()
     work_type = script.get("work_type") or "short_form"
+    chapter_id = script.get("chapter_id")
+    visited = list(visited_chapter_ids or [])
+    if work_type == "long_form" and chapter_id and chapter_id not in visited:
+        visited.append(str(chapter_id))
+
     _sessions[session_id] = {
         "script_id": script["id"],
         "script": script,
@@ -107,10 +115,20 @@ def create_session(
         "hit_pitfall_ids": list(hit_pitfall_ids or []),
         # Long-form fields (unused for short_form)
         "work_type": work_type,
-        "current_chapter_id": script.get("chapter_id"),
+        "current_chapter_id": chapter_id,
         "flags": dict(flags or {}),
         "chapter_summaries": list(chapter_summaries or []),
         "save_id": save_id,
+        "visited_chapter_ids": visited,
+        "had_branch_choice": bool(had_branch_choice),
+        # Auth
+        "user_id": user_id,
+        # Chapter-level stat tracking for settlement screen
+        "chapter_start_stats": dict(initial_stats),
+        # Pending two-step chapter advance state
+        "pending_next_chapter_id": None,
+        "pending_chapter_summary": None,
+        "pending_flags": None,
         "created_at": now,
         "last_active_at": now,
     }

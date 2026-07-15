@@ -31,6 +31,8 @@ class AppSettings(BaseSettings):
     supabase_key: str = Field(default="", validation_alias="SUPABASE_KEY")
     # file | supabase | "" (auto: supabase when credentials present, else file)
     content_backend: str = Field(default="", validation_alias="CONTENT_BACKEND")
+    # Supabase anon key — exposed to frontend for Auth JS SDK
+    supabase_anon_key: str = Field(default="", validation_alias="SUPABASE_ANON_KEY")
 
 
 @lru_cache

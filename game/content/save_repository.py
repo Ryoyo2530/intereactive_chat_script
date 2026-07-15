@@ -15,9 +15,9 @@ from game.db.supabase_retry import supabase_execute
 logger = logging.getLogger(__name__)
 
 _SAVE_COLUMNS = (
-    "id, work_id, current_chapter_id, current_turn, stats, flags, chapter_summaries, "
+    "id, work_id, user_id, current_chapter_id, current_turn, stats, flags, chapter_summaries, "
     "hit_key_point_ids, hit_pitfall_ids, conversation_history, game_over, outcome, "
-    "created_at, updated_at"
+    "visited_chapter_ids, had_branch_choice, created_at, updated_at"
 )
 
 
@@ -42,9 +42,13 @@ def create_save(payload: dict[str, Any]) -> dict[str, Any]:
         "conversation_history": payload.get("conversation_history", []),
         "game_over": payload.get("game_over", False),
         "outcome": payload.get("outcome"),
+        "visited_chapter_ids": payload.get("visited_chapter_ids", []),
+        "had_branch_choice": bool(payload.get("had_branch_choice", False)),
     }
     if payload.get("id"):
         row["id"] = payload["id"]
+    if payload.get("user_id"):
+        row["user_id"] = payload["user_id"]
 
     response = supabase_execute(
         client.table("saves").insert(row),
@@ -84,6 +88,9 @@ def update_save(save_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         "conversation_history",
         "game_over",
         "outcome",
+        "visited_chapter_ids",
+        "had_branch_choice",
+        "user_id",
     }
     patch = {k: v for k, v in updates.items() if k in allowed}
     if not patch:
@@ -127,4 +134,32 @@ def list_saves_for_work(work_id: str) -> list[dict[str, Any]]:
         action=f"list saves for {work_id}",
     )
     _raise_from_response(f"list saves for {work_id}", response)
+    return list(response.data or [])
+
+
+def list_saves_for_user_and_work(user_id: str, work_id: str) -> list[dict[str, Any]]:
+    client = get_supabase()
+    response = supabase_execute(
+        client.table("saves")
+        .select(_SAVE_COLUMNS)
+        .eq("user_id", user_id)
+        .eq("work_id", work_id)
+        .order("updated_at", desc=True),
+        action=f"list saves user={user_id[:8]} work={work_id}",
+    )
+    _raise_from_response(f"list saves user/work", response)
+    return list(response.data or [])
+
+
+def list_long_form_saves_for_user(user_id: str) -> list[dict[str, Any]]:
+    """All long-form saves for a user, newest first (for history view)."""
+    client = get_supabase()
+    response = supabase_execute(
+        client.table("saves")
+        .select(_SAVE_COLUMNS)
+        .eq("user_id", user_id)
+        .order("updated_at", desc=True),
+        action=f"list saves user={user_id[:8]}",
+    )
+    _raise_from_response("list saves for user", response)
     return list(response.data or [])
